@@ -11,6 +11,15 @@ const MODELS = [
   { id: "gemini-3-pro-preview", label: "Gemini 3 Pro" },
 ] as const;
 
+const MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
+  "gemini-2.0-flash": 8192,
+  "gemini-2.5-flash": 65536,
+  "gemini-3-flash-preview": 65536,
+  "gemini-3-pro-preview": 65536,
+};
+
+const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
+
 const LANGUAGES = [
   { code: "auto", label: "Auto-detect" },
   { code: "en", label: "English" },
@@ -24,6 +33,7 @@ const LANGUAGES = [
 const TARGET_LANGUAGES = LANGUAGES.filter((l) => l.code !== "auto");
 
 const API_KEY_STORAGE_KEY = "gemini_translator_api_key";
+const TARGET_LANG_STORAGE_KEY = "gemini_translator_target_lang";
 
 // ─── Icons (inline SVG) ─────────────────────────────────────────────────────
 
@@ -116,20 +126,35 @@ export default function TranslatorApp() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [charCount, setCharCount] = useState(0);
+  const [activePanel, setActivePanel] = useState<"input" | "output">("input");
   const [tokenUsage, setTokenUsage] = useState<{
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
   } | null>(null);
 
+  const activeMaxOutputTokens =
+    MODEL_MAX_OUTPUT_TOKENS[selectedModel] ?? DEFAULT_MAX_OUTPUT_TOKENS;
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const outputRef = useRef<HTMLDivElement>(null);
 
   // Load API key from sessionStorage on mount
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem(API_KEY_STORAGE_KEY);
       if (stored) setApiKey(stored);
+    } catch {
+      // sessionStorage not available
+    }
+  }, []);
+
+  // Load target language from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(TARGET_LANG_STORAGE_KEY);
+      if (stored && TARGET_LANGUAGES.some((l) => l.code === stored)) {
+        setTargetLang(stored);
+      }
     } catch {
       // sessionStorage not available
     }
@@ -144,6 +169,15 @@ export default function TranslatorApp() {
       } else {
         sessionStorage.removeItem(API_KEY_STORAGE_KEY);
       }
+    } catch {
+      // sessionStorage not available
+    }
+  };
+
+  const handleTargetLangChange = (value: string) => {
+    setTargetLang(value);
+    try {
+      sessionStorage.setItem(TARGET_LANG_STORAGE_KEY, value);
     } catch {
       // sessionStorage not available
     }
@@ -167,7 +201,7 @@ export default function TranslatorApp() {
   const handleSwapLanguages = useCallback(() => {
     if (sourceLang === "auto") return;
     setSourceLang(targetLang);
-    setTargetLang(sourceLang);
+    handleTargetLangChange(sourceLang);
   }, [sourceLang, targetLang]);
 
   // Copy to clipboard
@@ -224,6 +258,7 @@ export default function TranslatorApp() {
       }
 
       setTranslatedText(data.translatedText);
+      setActivePanel("output");
 
       if (data.usage) {
         setTokenUsage(data.usage);
@@ -234,10 +269,6 @@ export default function TranslatorApp() {
         console.groupEnd();
       }
 
-      // Scroll to output on mobile
-      setTimeout(() => {
-        outputRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }, 100);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {
@@ -295,12 +326,17 @@ export default function TranslatorApp() {
 
       {/* Controls Row */}
       <div className="glass-card p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,1fr)_minmax(0,2fr)] gap-3 items-end">
           {/* Model Selection */}
-          <div className="flex-1">
-            <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block font-display">
-              Model
-            </label>
+          <div>
+            <div className="flex items-center justify-between mb-1.5 gap-2">
+              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block font-display">
+                Model
+              </label>
+              <span className="text-[10px] text-gray-500 font-display tabular-nums whitespace-nowrap">
+                Max output: {activeMaxOutputTokens.toLocaleString()} tokens
+              </span>
+            </div>
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
@@ -320,7 +356,7 @@ export default function TranslatorApp() {
           </div>
 
           {/* Language Selection */}
-          <div className="flex items-end gap-2 flex-1 sm:flex-[2]">
+          <div className="flex items-end gap-2 min-w-0">
             <div className="flex-1">
               <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block font-display">
                 From
@@ -359,7 +395,7 @@ export default function TranslatorApp() {
               </label>
               <select
                 value={targetLang}
-                onChange={(e) => setTargetLang(e.target.value)}
+                onChange={(e) => handleTargetLangChange(e.target.value)}
                 className="w-full bg-[#12141c] border border-[#2a2d3a] rounded-lg px-3 py-2.5 text-sm text-gray-200 font-display cursor-pointer transition-all appearance-none"
                 style={{
                   backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
@@ -378,46 +414,150 @@ export default function TranslatorApp() {
         </div>
       </div>
 
-      {/* Input / Output Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Input Area */}
-        <div className="glass-card p-4 flex flex-col">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider font-display">
-              Input
-            </span>
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] text-gray-500 font-display tabular-nums">
-                {charCount.toLocaleString()} chars
-                {charCount > 0 && (
-                  <> | ~{Math.ceil(charCount / 4).toLocaleString()} tokens</>
-                )}
+      {/* Input / Output Tabs */}
+      <div className="glass-card p-4 flex flex-col min-h-[520px]">
+        <div className="flex items-center gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => setActivePanel("input")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${activePanel === "input"
+                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
+              }`}
+          >
+            Input
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePanel("output")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${activePanel === "output"
+                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
+              }`}
+          >
+            Output
+          </button>
+        </div>
+
+        {activePanel === "input" ? (
+          <>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider font-display">
+                Input
               </span>
-              {inputText && (
-                <button
-                  onClick={() => {
-                    setInputText("");
-                    setTranslatedText("");
-                    setError(null);
-                    setTokenUsage(null);
-                  }}
-                  className="text-gray-500 hover:text-gray-300 transition-colors"
-                  title="Clear input"
-                  type="button"
-                >
-                  <IconClear />
-                </button>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-gray-500 font-display tabular-nums">
+                  {charCount.toLocaleString()} chars
+                  {charCount > 0 && (
+                    <> | ~{Math.ceil(charCount / 4).toLocaleString()} tokens</>
+                  )}
+                </span>
+                {inputText && (
+                  <button
+                    onClick={() => {
+                      setInputText("");
+                      setTranslatedText("");
+                      setError(null);
+                      setTokenUsage(null);
+                    }}
+                    className="text-gray-500 hover:text-gray-300 transition-colors"
+                    title="Clear input"
+                    type="button"
+                  >
+                    <IconClear />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <textarea
+              ref={textareaRef}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="add your content here and translate.."
+              className="flex-1 w-full bg-[#12141c] border border-[#2a2d3a] rounded-lg px-4 py-3 text-sm text-gray-200 placeholder:text-gray-500 font-display leading-relaxed resize-none min-h-[360px] transition-all"
+              spellCheck={false}
+            />
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider font-display">
+                Output
+              </span>
+              {translatedText && (
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-gray-500 font-display tabular-nums">
+                    {translatedText.length.toLocaleString()} chars
+                    {tokenUsage && (
+                      <> | {tokenUsage.outputTokens.toLocaleString()} tokens</>
+                    )}
+                  </span>
+                  <button
+                    onClick={handleCopy}
+                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-cyan-400 transition-colors font-display"
+                    type="button"
+                  >
+                    {copied ? (
+                      <>
+                        <IconCheck />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <IconCopy />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
             </div>
-          </div>
-          <textarea
-            ref={textareaRef}
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="add your content here and translate.."
-            className="flex-1 w-full bg-[#12141c] border border-[#2a2d3a] rounded-lg px-4 py-3 text-sm text-gray-200 placeholder:text-gray-500 font-display leading-relaxed resize-none min-h-[200px] transition-all"
-            spellCheck={false}
-          />
+
+            <div className="output-block flex-1 min-h-[360px] overflow-auto">
+              {isLoading ? (
+                <div className="p-4 space-y-3">
+                  <div className="skeleton-shimmer h-4 rounded w-3/4" />
+                  <div className="skeleton-shimmer h-4 rounded w-full" />
+                  <div className="skeleton-shimmer h-4 rounded w-5/6" />
+                  <div className="skeleton-shimmer h-4 rounded w-2/3" />
+                  <div className="skeleton-shimmer h-4 rounded w-4/5" />
+                  <div className="skeleton-shimmer h-4 rounded w-1/2" />
+                  <div className="skeleton-shimmer h-4 rounded w-full" />
+                  <div className="skeleton-shimmer h-4 rounded w-3/4" />
+                </div>
+              ) : error ? (
+                <div className="p-4 flex flex-col items-center justify-center min-h-[360px] gap-3">
+                  <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 text-lg">
+                    !
+                  </div>
+                  <p className="text-sm text-red-400 text-center max-w-sm leading-relaxed">
+                    {error}
+                  </p>
+                  <button
+                    onClick={handleTranslate}
+                    className="mt-1 text-xs text-gray-400 hover:text-cyan-400 transition-colors font-display underline underline-offset-2"
+                    type="button"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : translatedText ? (
+                <pre className="p-4">
+                  <code className="text-gray-200">{translatedText}</code>
+                </pre>
+              ) : (
+                <div className="p-4 flex items-center justify-center min-h-[360px]">
+                  <p className="text-sm text-gray-500 text-center font-display">
+                    Translation will appear here
+                  </p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        <div className="mt-4">
           {translatedText && !isLoading ? (
             <button
               onClick={() => {
@@ -425,8 +565,9 @@ export default function TranslatorApp() {
                 setTranslatedText("");
                 setError(null);
                 setTokenUsage(null);
+                setActivePanel("input");
               }}
-              className="mt-4 w-full py-3 px-6 rounded-lg border border-[#2a2d3a] bg-[#12141c] text-gray-400 hover:text-cyan-400 hover:border-cyan-400/40 font-semibold text-sm font-display transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              className="w-full py-3 px-6 rounded-lg border border-[#2a2d3a] bg-[#12141c] text-gray-400 hover:text-cyan-400 hover:border-cyan-400/40 font-semibold text-sm font-display transition-all active:scale-[0.98] flex items-center justify-center gap-2"
               type="button"
             >
               <IconClear />
@@ -436,7 +577,7 @@ export default function TranslatorApp() {
             <button
               onClick={handleTranslate}
               disabled={isLoading || !inputText.trim() || !apiKey.trim()}
-              className="btn-translate mt-4 w-full py-3 px-6 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white font-semibold text-sm font-display disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              className="btn-translate w-full py-3 px-6 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white font-semibold text-sm font-display disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
               type="button"
             >
               {isLoading ? (
@@ -457,83 +598,6 @@ export default function TranslatorApp() {
               )}
             </button>
           )}
-        </div>
-
-        {/* Output Area */}
-        <div ref={outputRef} className="glass-card p-4 flex flex-col">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider font-display">
-              Output
-            </span>
-            {translatedText && (
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] text-gray-500 font-display tabular-nums">
-                  {translatedText.length.toLocaleString()} chars
-                  {tokenUsage && (
-                    <> | {tokenUsage.outputTokens.toLocaleString()} tokens</>
-                  )}
-                </span>
-                <button
-                  onClick={handleCopy}
-                  className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-cyan-400 transition-colors font-display"
-                  type="button"
-                >
-                  {copied ? (
-                    <>
-                      <IconCheck />
-                      <span>Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <IconCopy />
-                      <span>Copy</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="output-block flex-1 min-h-[200px] overflow-auto">
-            {isLoading ? (
-              <div className="p-4 space-y-3">
-                <div className="skeleton-shimmer h-4 rounded w-3/4" />
-                <div className="skeleton-shimmer h-4 rounded w-full" />
-                <div className="skeleton-shimmer h-4 rounded w-5/6" />
-                <div className="skeleton-shimmer h-4 rounded w-2/3" />
-                <div className="skeleton-shimmer h-4 rounded w-4/5" />
-                <div className="skeleton-shimmer h-4 rounded w-1/2" />
-                <div className="skeleton-shimmer h-4 rounded w-full" />
-                <div className="skeleton-shimmer h-4 rounded w-3/4" />
-              </div>
-            ) : error ? (
-              <div className="p-4 flex flex-col items-center justify-center min-h-[200px] gap-3">
-                <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 text-lg">
-                  !
-                </div>
-                <p className="text-sm text-red-400 text-center max-w-sm leading-relaxed">
-                  {error}
-                </p>
-                <button
-                  onClick={handleTranslate}
-                  className="mt-1 text-xs text-gray-400 hover:text-cyan-400 transition-colors font-display underline underline-offset-2"
-                  type="button"
-                >
-                  Try again
-                </button>
-              </div>
-            ) : translatedText ? (
-              <pre className="p-4">
-                <code className="text-gray-200">{translatedText}</code>
-              </pre>
-            ) : (
-              <div className="p-4 flex items-center justify-center min-h-[200px]">
-                <p className="text-sm text-gray-500 text-center font-display">
-                  Translation will appear here
-                </p>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

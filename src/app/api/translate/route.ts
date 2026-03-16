@@ -18,6 +18,16 @@ const LANGUAGE_NAMES: Record<string, string> = {
   en: "English",
 };
 
+// Keep these limits aligned with the current Gemini model documentation.
+const MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
+  "gemini-2.0-flash": 8192,
+  "gemini-2.5-flash": 65536,
+  "gemini-3-flash-preview": 65536,
+  "gemini-3-pro-preview": 65536,
+};
+
+const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
+
 function buildSystemPrompt(sourceLang: string, targetLang: string): string {
   const sourceLabel = LANGUAGE_NAMES[sourceLang] || sourceLang;
   const targetLabel = LANGUAGE_NAMES[targetLang] || targetLang;
@@ -103,6 +113,8 @@ export async function POST(request: NextRequest) {
     }
 
     const systemPrompt = buildSystemPrompt(sourceLang, targetLang);
+    const maxOutputTokens =
+      MODEL_MAX_OUTPUT_TOKENS[model] ?? DEFAULT_MAX_OUTPUT_TOKENS;
 
     // Call Gemini API
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -124,7 +136,7 @@ export async function POST(request: NextRequest) {
         generationConfig: {
           temperature: 0.1,
           topP: 0.95,
-          maxOutputTokens: 8192,
+          maxOutputTokens,
         },
         safetySettings: [
           {
