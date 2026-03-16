@@ -7,14 +7,20 @@ import { useState, useCallback, useRef, useEffect } from "react";
 const MODELS = [
   { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
   { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+  { id: "gemini-3.1-flash-lite-preview", label: "Gemini 3.1 Flash Lite (Preview)" },
+  { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (Preview)" },
   { id: "gemini-3-flash-preview", label: "Gemini 3 Flash" },
+  { id: "gemini-flash-latest", label: "Gemini Flash (Latest)" },
   { id: "gemini-3-pro-preview", label: "Gemini 3 Pro" },
 ] as const;
 
 const MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   "gemini-2.0-flash": 8192,
   "gemini-2.5-flash": 65536,
+  "gemini-3.1-flash-lite-preview": 65536,
+  "gemini-3.1-pro-preview": 65536,
   "gemini-3-flash-preview": 65536,
+  "gemini-flash-latest": 65536,
   "gemini-3-pro-preview": 65536,
 };
 
@@ -117,7 +123,7 @@ export default function TranslatorApp() {
   // State
   const [inputText, setInputText] = useState("");
   const [translatedText, setTranslatedText] = useState("");
-  const [selectedModel, setSelectedModel] = useState<string>(MODELS[1].id);
+  const [selectedModel, setSelectedModel] = useState<string>("gemini-3.1-flash-lite-preview");
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("es");
   const [apiKey, setApiKey] = useState("");
@@ -237,6 +243,7 @@ export default function TranslatorApp() {
     setIsLoading(true);
     setError(null);
     setTranslatedText("");
+    setActivePanel("output");
 
     try {
       const response = await fetch("/api/translate", {
@@ -421,8 +428,8 @@ export default function TranslatorApp() {
             type="button"
             onClick={() => setActivePanel("input")}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${activePanel === "input"
-                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
-                : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
+              ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+              : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
               }`}
           >
             Input
@@ -431,8 +438,8 @@ export default function TranslatorApp() {
             type="button"
             onClick={() => setActivePanel("output")}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${activePanel === "output"
-                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
-                : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
+              ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+              : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
               }`}
           >
             Output
@@ -516,15 +523,17 @@ export default function TranslatorApp() {
 
             <div className="output-block flex-1 min-h-[360px] overflow-auto">
               {isLoading ? (
-                <div className="p-4 space-y-3">
-                  <div className="skeleton-shimmer h-4 rounded w-3/4" />
-                  <div className="skeleton-shimmer h-4 rounded w-full" />
-                  <div className="skeleton-shimmer h-4 rounded w-5/6" />
-                  <div className="skeleton-shimmer h-4 rounded w-2/3" />
-                  <div className="skeleton-shimmer h-4 rounded w-4/5" />
-                  <div className="skeleton-shimmer h-4 rounded w-1/2" />
-                  <div className="skeleton-shimmer h-4 rounded w-full" />
-                  <div className="skeleton-shimmer h-4 rounded w-3/4" />
+                <div className="translation-wow h-full min-h-[360px] flex items-center justify-center p-6">
+                  <div className="translation-wow-card">
+                    <div className="translation-orb" aria-hidden="true" />
+                    <p className="translation-wow-title">Crafting your translation...</p>
+                    <p className="translation-wow-subtitle">Gemini is preserving markup and structure while translating.</p>
+                    <div className="translation-wow-bars" aria-hidden="true">
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+                  </div>
                 </div>
               ) : error ? (
                 <div className="p-4 flex flex-col items-center justify-center min-h-[360px] gap-3">
@@ -577,7 +586,7 @@ export default function TranslatorApp() {
             <button
               onClick={handleTranslate}
               disabled={isLoading || !inputText.trim() || !apiKey.trim()}
-              className="btn-translate w-full py-3 px-6 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white font-semibold text-sm font-display disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              className={`btn-translate w-full py-3 px-6 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white font-semibold text-sm font-display disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${isLoading ? "btn-translate-live" : ""}`}
               type="button"
             >
               {isLoading ? (
@@ -587,7 +596,7 @@ export default function TranslatorApp() {
                     <span className="w-1.5 h-1.5 rounded-full bg-white inline-block" />
                     <span className="w-1.5 h-1.5 rounded-full bg-white inline-block" />
                   </span>
-                  <span>Translating...</span>
+                  <span>Translating with Gemini...</span>
                 </>
               ) : (
                 <>

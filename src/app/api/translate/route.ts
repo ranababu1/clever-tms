@@ -22,7 +22,10 @@ const LANGUAGE_NAMES: Record<string, string> = {
 const MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   "gemini-2.0-flash": 8192,
   "gemini-2.5-flash": 65536,
+  "gemini-3.1-flash-lite-preview": 65536,
+  "gemini-3.1-pro-preview": 65536,
   "gemini-3-flash-preview": 65536,
+  "gemini-flash-latest": 65536,
   "gemini-3-pro-preview": 65536,
 };
 
