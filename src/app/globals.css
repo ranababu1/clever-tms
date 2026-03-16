@@ -193,39 +193,27 @@ select option {
   }
 }
 
-@keyframes orbSpin {
-  0% {
-    transform: rotate(0deg);
-  }
-
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes orbPulse {
+@keyframes floatY {
 
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.35);
+    transform: translateY(0px);
   }
 
   50% {
-    box-shadow: 0 0 0 12px rgba(34, 211, 238, 0.02);
+    transform: translateY(-12px);
   }
 }
 
-@keyframes wowBar {
-
-  0%,
-  100% {
-    transform: scaleY(0.45);
-    opacity: 0.45;
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
   }
 
-  50% {
-    transform: scaleY(1);
+  to {
     opacity: 1;
+    transform: translateX(0);
   }
 }
 
@@ -284,26 +272,30 @@ select option {
   animation: fadeInUp 0.35s ease;
 }
 
-.translation-wow-bars {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 20px;
+.landing-grid-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(59, 130, 246, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, 0.08) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at center, black 32%, transparent 78%);
+  pointer-events: none;
 }
 
-.translation-wow-bars span {
-  width: 4px;
-  height: 18px;
-  border-radius: 999px;
-  background: linear-gradient(to top, #06b6d4, #3b82f6);
-  transform-origin: center bottom;
-  animation: wowBar 1.1s ease-in-out infinite;
+.float-slow {
+  animation: floatY 8s ease-in-out infinite;
 }
 
-.translation-wow-bars span:nth-child(2) {
-  animation-delay: 0.15s;
+.float-medium {
+  animation: floatY 6s ease-in-out infinite;
 }
 
-.translation-wow-bars span:nth-child(3) {
-  animation-delay: 0.3s;
+.reveal-up {
+  animation: fadeInUp 0.65s ease forwards;
+}
+
+.reveal-right {
+  animation: fadeInRight 0.65s ease forwards;
 }

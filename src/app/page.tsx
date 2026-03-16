@@ -5,7 +5,7 @@ export default function Home() {
     <main className="min-h-screen flex flex-col">
       {/* ── Header / Navbar ── */}
       <header className="w-full border-b border-[#2a2d3a] bg-[#13151e]/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white font-bold text-base font-display">
@@ -35,53 +35,78 @@ export default function Home() {
       </header>
 
       {/* ── Hero Section ── */}
-      <section className="relative flex-1 flex items-center justify-center px-4 sm:px-6 py-24 sm:py-32 overflow-hidden">
+      <section className="relative flex-1 flex items-center justify-center px-4 sm:px-6 py-20 sm:py-24 overflow-hidden landing-grid-bg">
         {/* Background glow */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-cyan-500/10 rounded-full blur-[120px]" />
-          <div className="absolute bottom-0 left-1/4 w-[300px] h-[300px] bg-blue-500/8 rounded-full blur-[100px]" />
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[760px] h-[460px] bg-cyan-500/10 rounded-full blur-[120px] float-slow" />
+          <div className="absolute bottom-0 left-1/4 w-[360px] h-[360px] bg-blue-500/8 rounded-full blur-[100px] float-medium" />
         </div>
 
-        <div className="relative max-w-3xl mx-auto text-center flex flex-col items-center gap-8">
-          <div className="inline-flex items-center gap-2 text-xs font-semibold text-cyan-400 border border-cyan-500/20 rounded-full px-4 py-1.5 bg-cyan-500/5 tracking-wide uppercase font-display">
-            Powered by Google Gemini
+        <div className="relative w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-10 items-center">
+          <div className="text-center lg:text-left flex flex-col items-center lg:items-start gap-8 reveal-up">
+            <div className="inline-flex items-center gap-2 text-xs font-semibold text-cyan-400 border border-cyan-500/20 rounded-full px-4 py-1.5 bg-cyan-500/5 tracking-wide uppercase font-display">
+              Powered by Google Gemini
+            </div>
+
+            <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold tracking-tight leading-[1.06] text-white font-display">
+              Translate
+              <br />
+              <span className="bg-gradient-to-r from-cyan-300 via-blue-300 to-violet-300 bg-clip-text text-transparent">
+                Anything. Instantly.
+              </span>
+            </h1>
+
+            <p className="text-lg sm:text-xl text-gray-400 max-w-2xl leading-relaxed font-display">
+              Drop any text, code, or content and get high-quality translations powered by the latest Gemini models. Free to use &mdash; just bring your own API key.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center gap-4 mt-2">
+              <Link
+                href="/translate"
+                className="group relative px-8 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold text-base font-display transition-all hover:shadow-lg hover:shadow-cyan-500/25 active:scale-[0.98]"
+              >
+                Start Translating
+                <span className="ml-2 inline-block transition-transform group-hover:translate-x-1">&rarr;</span>
+              </Link>
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm leading-none pt-0.5 text-gray-400 hover:text-cyan-400 transition-colors font-display underline underline-offset-4 decoration-gray-600 hover:decoration-cyan-400/50"
+              >
+                Get your Gemini API key
+              </a>
+            </div>
           </div>
 
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold tracking-tight leading-[1.08] text-white font-display">
-            Translate
-            <br />
-            <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-violet-400 bg-clip-text text-transparent">
-              Anything. Instantly.
-            </span>
-          </h1>
+          <div className="glass-card p-6 sm:p-7 relative overflow-hidden reveal-right">
+            <div className="absolute -top-20 -right-16 w-56 h-56 bg-cyan-500/10 blur-[70px] rounded-full float-slow" />
+            <div className="absolute -bottom-16 -left-10 w-48 h-48 bg-blue-500/10 blur-[70px] rounded-full float-medium" />
 
-          <p className="text-lg sm:text-xl text-gray-400 max-w-xl leading-relaxed font-display">
-            Drop any text, code, or content and get high-quality translations powered by the latest Gemini models. Free to use &mdash; just bring your own API key.
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center gap-4 mt-2">
-            <Link
-              href="/translate"
-              className="group relative px-8 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold text-base font-display transition-all hover:shadow-lg hover:shadow-cyan-500/25 active:scale-[0.98]"
-            >
-              Start Translating
-              <span className="ml-2 inline-block transition-transform group-hover:translate-x-1">&rarr;</span>
-            </Link>
-            <a
-              href="https://aistudio.google.com/apikey"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-gray-400 hover:text-cyan-400 transition-colors font-display underline underline-offset-4 decoration-gray-600 hover:decoration-cyan-400/50"
-            >
-              Get your Gemini API key
-            </a>
+            <div className="relative space-y-4">
+              <div className="text-[11px] uppercase tracking-wider text-cyan-300/90 font-display">Live Preview</div>
+              <div className="output-block p-4 min-h-[210px] flex flex-col gap-3">
+                <p className="text-xs text-gray-400 font-display">Input</p>
+                <div className="h-3 rounded skeleton-shimmer w-[80%]" />
+                <div className="h-3 rounded skeleton-shimmer w-[92%]" />
+                <div className="h-3 rounded skeleton-shimmer w-[70%]" />
+                <p className="text-xs text-gray-400 font-display mt-2">Output</p>
+                <div className="h-3 rounded skeleton-shimmer w-[88%]" />
+                <div className="h-3 rounded skeleton-shimmer w-[74%]" />
+              </div>
+              <div className="flex items-center justify-between gap-3 text-xs text-gray-400 font-display">
+                <span className="px-2.5 py-1 rounded-md border border-cyan-500/25 text-cyan-300/90">Code-safe</span>
+                <span className="px-2.5 py-1 rounded-md border border-cyan-500/25 text-cyan-300/90">Fast Models</span>
+                <span className="px-2.5 py-1 rounded-md border border-cyan-500/25 text-cyan-300/90">Review Mode</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* ── Features Section ── */}
       <section className="w-full px-4 sm:px-6 py-20 sm:py-28">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <h2 className="text-3xl sm:text-4xl font-bold text-center text-white font-display tracking-tight mb-4">
             Why Clever TMS?
           </h2>
@@ -125,7 +150,7 @@ export default function Home() {
 
       {/* ── CTA Section ── */}
       <section className="w-full px-4 sm:px-6 py-20 sm:py-24">
-        <div className="max-w-3xl mx-auto text-center glass-card p-12 sm:p-16 relative overflow-hidden">
+        <div className="max-w-5xl mx-auto text-center glass-card p-12 sm:p-16 relative overflow-hidden reveal-up">
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute -top-20 -right-20 w-60 h-60 bg-cyan-500/10 rounded-full blur-[80px]" />
             <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-blue-500/10 rounded-full blur-[80px]" />
@@ -150,7 +175,7 @@ export default function Home() {
 
       {/* ── Footer ── */}
       <footer className="w-full border-t border-[#2a2d3a] bg-[#0c0e15] py-10">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center flex flex-col items-center gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center flex flex-col items-center gap-3">
           <p className="font-semibold text-lg text-white font-display tracking-tight">
             Clever TMS
           </p>
@@ -198,7 +223,7 @@ function FeatureCard({
   description: string;
 }) {
   return (
-    <div className="glass-card p-6 sm:p-8 flex flex-col gap-4 hover:border-cyan-500/20 transition-colors">
+    <div className="glass-card p-6 sm:p-8 flex flex-col gap-4 hover:border-cyan-500/20 transition-all hover:-translate-y-1 hover:shadow-[0_12px_36px_-18px_rgba(34,211,238,0.4)] reveal-up">
       <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
         {icon}
       </div>

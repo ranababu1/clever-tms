@@ -41,12 +41,15 @@ const TARGET_LANGUAGES = LANGUAGES.filter((l) => l.code !== "auto");
 const API_KEY_STORAGE_KEY = "gemini_translator_api_key";
 const TARGET_LANG_STORAGE_KEY = "gemini_translator_target_lang";
 const API_KEY_UPDATED_EVENT = "gemini-api-key-updated";
+const REVIEW_START_DELAY_MS = 5000;
 const LOADING_MESSAGES = [
-  "Powered by Google AI models",
-  "Inference used - Google",
-  "Good quality translation",
-  "Works with code",
-  "Save 100+ hours of manual work",
+  "Powered by Google AI",
+  "Inference pipeline initialized",
+  "Optimizing translation quality",
+  "Keeping code blocks intact",
+  "Preserving context and tone",
+  "Formatting output for quick use",
+  "Cutting hours of manual effort",
 ] as const;
 
 // ─── Icons (inline SVG) ─────────────────────────────────────────────────────
@@ -111,6 +114,7 @@ export default function TranslatorApp() {
   const [apiKey, setApiKey] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isReviewLoading, setIsReviewLoading] = useState(false);
+  const [isReviewPending, setIsReviewPending] = useState(false);
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -238,6 +242,8 @@ export default function TranslatorApp() {
     setReviewSummary([]);
     setCorrectedVersion(null);
     setReviewHasIssues(false);
+    setIsReviewPending(false);
+    setIsReviewLoading(false);
     setActivePanel("input");
   }, []);
 
@@ -339,6 +345,7 @@ export default function TranslatorApp() {
 
     setIsLoading(true);
     setIsReviewLoading(false);
+    setIsReviewPending(false);
     setError(null);
     setTranslatedText("");
     setReviewSummary([]);
@@ -348,12 +355,20 @@ export default function TranslatorApp() {
 
     try {
       const draft = await requestTranslation();
+
+      // Stage 1 complete: show translation result before review starts.
+      setIsLoading(false);
+      setIsReviewPending(true);
+      await new Promise((resolve) => window.setTimeout(resolve, REVIEW_START_DELAY_MS));
+
+      setIsReviewPending(false);
       setIsReviewLoading(true);
       await requestReview(draft);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {
       setIsLoading(false);
+      setIsReviewPending(false);
       setIsReviewLoading(false);
     }
   }, [apiKey, inputText, requestReview, requestTranslation]);
@@ -575,8 +590,7 @@ export default function TranslatorApp() {
               {isLoading ? (
                 <div className="translation-wow h-full min-h-[360px] flex items-center justify-center p-6">
                   <div className="translation-wow-card">
-                    <p className="translation-wow-title">Crafting your translation...</p>
-                    <p className="translation-wow-subtitle">Gemini is preserving markup and structure while translating.</p>
+                    <p className="translation-wow-title">Translator Agent In Action</p>
                     <div className="translation-line-skeleton" aria-hidden="true" />
                     <div className="translation-message-rail">
                       <span className="translation-message-text" key={loadingMessageIndex}>
@@ -616,10 +630,15 @@ export default function TranslatorApp() {
 
             {translatedText && (
               <div className="mt-3 p-3 rounded-lg border border-[#2a2d3a] bg-[#12141c]">
-                {isReviewLoading ? (
+                {isReviewPending ? (
+                  <div className="flex items-center gap-2 text-xs text-blue-300 font-display">
+                    <span className="inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                    Translation agent done. Starting review agent in 5 seconds...
+                  </div>
+                ) : isReviewLoading ? (
                   <div className="flex items-center gap-2 text-xs text-cyan-300 font-display">
                     <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                    Reviewing translation quality and code-safe consistency...
+                    Review agent working on quality and accuracy checks...
                   </div>
                 ) : reviewSummary.length > 0 || reviewHasIssues ? (
                   <div className="space-y-2">
@@ -674,7 +693,7 @@ export default function TranslatorApp() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={handleTranslate}
-                disabled={isLoading || isReviewLoading || !inputText.trim() || !apiKey.trim()}
+                disabled={isLoading || isReviewPending || isReviewLoading || !inputText.trim() || !apiKey.trim()}
                 className={`btn-translate w-full py-3 px-6 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white font-semibold text-sm font-display disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${isLoading && !isReviewLoading ? "btn-translate-live" : ""}`}
                 type="button"
               >
@@ -693,7 +712,7 @@ export default function TranslatorApp() {
 
               <button
                 onClick={handleTranslateAndReview}
-                disabled={isLoading || isReviewLoading || !inputText.trim() || !apiKey.trim()}
+                disabled={isLoading || isReviewPending || isReviewLoading || !inputText.trim() || !apiKey.trim()}
                 className={`btn-translate w-full py-3 px-6 rounded-lg border border-cyan-400/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 font-semibold text-sm font-display disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${(isLoading || isReviewLoading) ? "btn-translate-live" : ""}`}
                 type="button"
               >
