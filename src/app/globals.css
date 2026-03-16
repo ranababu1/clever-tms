@@ -90,6 +90,15 @@ input:focus {
   animation: translateSweep 1.8s ease-in-out infinite;
 }
 
+.loading-text-shimmer {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.5) 20%, rgba(255, 255, 255, 0.95) 50%, rgba(255, 255, 255, 0.5) 80%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmerText 1.4s linear infinite;
+}
+
 /* Code output block */
 .output-block {
   position: relative;
@@ -174,6 +183,16 @@ select option {
   }
 }
 
+@keyframes shimmerText {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 @keyframes orbSpin {
   0% {
     transform: rotate(0deg);
@@ -212,34 +231,16 @@ select option {
 
 .translation-wow {
   background:
-    radial-gradient(circle at 20% 20%, rgba(34, 211, 238, 0.08), transparent 55%),
-    radial-gradient(circle at 80% 80%, rgba(59, 130, 246, 0.08), transparent 55%);
+    radial-gradient(circle at 10% 20%, rgba(34, 211, 238, 0.08), transparent 45%),
+    radial-gradient(circle at 90% 80%, rgba(59, 130, 246, 0.07), transparent 48%);
 }
 
 .translation-wow-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.85rem;
   text-align: center;
-}
-
-.translation-orb {
-  width: 58px;
-  height: 58px;
-  border-radius: 999px;
-  background:
-    conic-gradient(from 0deg, rgba(34, 211, 238, 0.95), rgba(59, 130, 246, 0.7), rgba(34, 211, 238, 0.95));
-  animation: orbSpin 2.8s linear infinite, orbPulse 2s ease-in-out infinite;
-  position: relative;
-}
-
-.translation-orb::after {
-  content: "";
-  position: absolute;
-  inset: 7px;
-  border-radius: inherit;
-  background: #0f1320;
 }
 
 .translation-wow-title {
@@ -253,6 +254,34 @@ select option {
   color: var(--text-secondary);
   max-width: 34ch;
   line-height: 1.45;
+}
+
+.translation-line-skeleton {
+  width: min(520px, 90%);
+  height: 42px;
+  border-radius: 10px;
+  background: linear-gradient(90deg,
+      rgba(34, 211, 238, 0.06) 10%,
+      rgba(34, 211, 238, 0.2) 40%,
+      rgba(59, 130, 246, 0.22) 50%,
+      rgba(34, 211, 238, 0.06) 90%);
+  background-size: 220% 100%;
+  animation: shimmer 1.35s linear infinite;
+  border: 1px solid rgba(34, 211, 238, 0.2);
+}
+
+.translation-message-rail {
+  height: 22px;
+  overflow: hidden;
+  position: relative;
+}
+
+.translation-message-text {
+  font-size: 0.79rem;
+  color: #96d8ff;
+  font-family: 'DM Sans', sans-serif;
+  display: inline-block;
+  animation: fadeInUp 0.35s ease;
 }
 
 .translation-wow-bars {
