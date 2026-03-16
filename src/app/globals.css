@@ -221,20 +221,24 @@ select option {
   background:
     radial-gradient(circle at 10% 20%, rgba(34, 211, 238, 0.08), transparent 45%),
     radial-gradient(circle at 90% 80%, rgba(59, 130, 246, 0.07), transparent 48%);
+  background-size: 160% 160%;
+  animation: translateSurfaceShift 5.2s ease-in-out infinite;
 }
 
 .translation-wow-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.85rem;
+  gap: 1rem;
   text-align: center;
+  width: 100%;
+  max-width: 920px;
 }
 
 .translation-wow-title {
-  font-size: 0.95rem;
+  font-size: clamp(1.1rem, 1.9vw, 1.45rem);
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .translation-wow-subtitle {
@@ -244,32 +248,44 @@ select option {
   line-height: 1.45;
 }
 
-.translation-line-skeleton {
-  width: min(520px, 90%);
-  height: 42px;
-  border-radius: 10px;
-  background: linear-gradient(90deg,
-      rgba(34, 211, 238, 0.06) 10%,
-      rgba(34, 211, 238, 0.2) 40%,
-      rgba(59, 130, 246, 0.22) 50%,
-      rgba(34, 211, 238, 0.06) 90%);
-  background-size: 220% 100%;
-  animation: shimmer 1.35s linear infinite;
-  border: 1px solid rgba(34, 211, 238, 0.2);
+.translation-canvas {
+  width: 100%;
+  min-height: 220px;
+  border-radius: 12px;
+  border: 1px solid rgba(34, 211, 238, 0.16);
+  background:
+    linear-gradient(100deg, rgba(34, 211, 238, 0.06) 12%, rgba(34, 211, 238, 0.18) 40%, rgba(59, 130, 246, 0.22) 52%, rgba(34, 211, 238, 0.06) 88%),
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 230% 100%, 28px 28px, 28px 28px;
+  background-position: 0 0, 0 0, 0 0;
+  animation: shimmer 1.4s linear infinite;
 }
 
 .translation-message-rail {
-  height: 22px;
+  height: 28px;
   overflow: hidden;
   position: relative;
 }
 
 .translation-message-text {
-  font-size: 0.79rem;
+  font-size: clamp(0.92rem, 1.2vw, 1.02rem);
   color: #96d8ff;
   font-family: 'DM Sans', sans-serif;
   display: inline-block;
   animation: fadeInUp 0.35s ease;
+}
+
+@keyframes translateSurfaceShift {
+
+  0%,
+  100% {
+    background-position: 0% 50%, 0 0;
+  }
+
+  50% {
+    background-position: 100% 50%, 0 0;
+  }
 }
 
 .landing-grid-bg::before {

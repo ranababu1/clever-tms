@@ -46,7 +46,7 @@ const LOADING_MESSAGES = [
   "Powered by Google AI",
   "Inference pipeline initialized",
   "Optimizing translation quality",
-  "Keeping code blocks intact",
+  "Aligning output structure",
   "Preserving context and tone",
   "Formatting output for quick use",
   "Cutting hours of manual effort",
@@ -591,7 +591,7 @@ export default function TranslatorApp() {
                 <div className="translation-wow h-full min-h-[360px] flex items-center justify-center p-6">
                   <div className="translation-wow-card">
                     <p className="translation-wow-title">Translator Agent In Action</p>
-                    <div className="translation-line-skeleton" aria-hidden="true" />
+                    <div className="translation-canvas" aria-hidden="true" />
                     <div className="translation-message-rail">
                       <span className="translation-message-text" key={loadingMessageIndex}>
                         {LOADING_MESSAGES[loadingMessageIndex]}
