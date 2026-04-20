@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { LANGUAGE_NAMES, MODEL_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS } from "@/lib/translation-models";
 
 interface TranslateRequest {
   text: string;
@@ -7,29 +8,6 @@ interface TranslateRequest {
   model: string;
   apiKey: string;
 }
-
-const LANGUAGE_NAMES: Record<string, string> = {
-  auto: "auto-detected language",
-  es: "Spanish",
-  pt: "Portuguese",
-  tr: "Turkish",
-  de: "German",
-  vi: "Vietnamese",
-  en: "English",
-};
-
-// Keep these limits aligned with the current Gemini model documentation.
-const MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
-  "gemini-2.0-flash": 8192,
-  "gemini-2.5-flash": 65536,
-  "gemini-3.1-flash-lite-preview": 65536,
-  "gemini-3.1-pro-preview": 65536,
-  "gemini-3-flash-preview": 65536,
-  "gemini-flash-latest": 65536,
-  "gemini-3-pro-preview": 65536,
-};
-
-const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
 
 function buildSystemPrompt(sourceLang: string, targetLang: string): string {
   const sourceLabel = LANGUAGE_NAMES[sourceLang] || sourceLang;
@@ -40,14 +18,22 @@ function buildSystemPrompt(sourceLang: string, targetLang: string): string {
       ? "Auto-detect the source language of the content."
       : `The source language is ${sourceLabel}.`;
 
-  return `You are a professional translator. Your task is to translate content from ${sourceLabel} to ${targetLabel}.
+  return `You are a professional translator specializing in website copy and marketing content for real-world end users.
+
+Your goal is NATURAL, IDIOMATIC translation — not literal word-for-word conversion. The output must read as if it were originally written in ${targetLabel} by a native speaker who understands the brand, tone, and audience.
 
 ${sourceInstruction}
 The target language is ${targetLabel}.
 
-CRITICAL RULES:
-1. ONLY translate natural language text (human-readable sentences, paragraphs, labels, UI strings).
-2. PRESERVE ALL of the following EXACTLY as-is, without any modification:
+TRANSLATION PRINCIPLES:
+1. Prioritize naturalness and fluency over literal accuracy. Rephrase and restructure sentences so the result feels completely native — never translated.
+2. Match the tone and register of the source: energetic marketing copy stays energetic, formal text stays formal, casual copy stays casual.
+3. Adapt idioms, expressions, and cultural references so they resonate naturally with ${targetLabel}-speaking audiences.
+4. Keep calls-to-action punchy and persuasive in the target language — do not translate them word-for-word.
+5. Preserve brand voice, rhythm, and persuasive intent.
+
+CODE/MARKUP RULES (non-negotiable):
+6. PRESERVE ALL of the following EXACTLY as-is, without any modification:
    - HTML tags and attributes (e.g., <div class="example">, <a href="...">, etc.)
    - CSS code and inline styles
    - JavaScript code
@@ -58,10 +44,12 @@ CRITICAL RULES:
    - URLs, email addresses, file paths
    - Numbers, dates in technical formats
    - Any programming syntax or markup
-3. Maintain the EXACT same structure, formatting, indentation, and line breaks as the original.
-4. Do NOT add any explanations, comments, or notes. Return ONLY the translated content.
-5. Do NOT wrap the output in markdown code blocks or any other formatting.
-6. If the content is purely code with no translatable text, return it unchanged.
+7. Maintain the EXACT same structure, formatting, indentation, and line breaks as the original.
+8. If the content is purely code with no translatable text, return it unchanged.
+
+OUTPUT RULES:
+9. Return ONLY the translated content — no explanations, comments, or notes.
+10. Do NOT wrap output in markdown code blocks or any other formatting.
 
 Translate the following content:`;
 }
@@ -137,7 +125,7 @@ export async function POST(request: NextRequest) {
           },
         ],
         generationConfig: {
-          temperature: 0.1,
+          temperature: 0.7,
           topP: 0.95,
           maxOutputTokens,
         },

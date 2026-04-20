@@ -315,3 +315,47 @@ select option {
 .reveal-right {
   animation: fadeInRight 0.65s ease forwards;
 }
+
+/* God Mode sliders */
+.gm-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  outline: none;
+  border: none;
+  width: 100%;
+}
+
+.gm-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #22d3ee;
+  border: 2px solid #0f1117;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.25);
+  transition: box-shadow 0.15s ease;
+}
+
+.gm-slider::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 5px rgba(34, 211, 238, 0.18);
+}
+
+.gm-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #22d3ee;
+  border: 2px solid #0f1117;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.25);
+}
+
+.gm-slider::-moz-range-track {
+  border: none;
+  background: transparent;
+}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { LANGUAGE_NAMES, MODEL_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS } from "@/lib/translation-models";
 
 interface ReviewRequest {
     originalText: string;
@@ -13,18 +14,6 @@ interface ParsedReview {
     issues: string[];
     correctedTranslation: string | null;
 }
-
-const MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
-    "gemini-2.0-flash": 8192,
-    "gemini-2.5-flash": 65536,
-    "gemini-3.1-flash-lite-preview": 65536,
-    "gemini-3.1-pro-preview": 65536,
-    "gemini-3-flash-preview": 65536,
-    "gemini-flash-latest": 65536,
-    "gemini-3-pro-preview": 65536,
-};
-
-const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
 
 function parseReviewJson(text: string): ParsedReview {
     const trimmed = text.trim();
@@ -94,28 +83,37 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "API key is required." }, { status: 400 });
         }
 
+        const targetLangName = LANGUAGE_NAMES[targetLang] || targetLang;
         const maxOutputTokens = MODEL_MAX_OUTPUT_TOKENS[model] ?? DEFAULT_MAX_OUTPUT_TOKENS;
         const reviewMaxTokens = Math.min(maxOutputTokens, 4096);
 
-        const prompt = `You are a strict translation QA reviewer.
-Check whether the translated output is accurate, natural, and faithful to the source while preserving ALL code/markup exactly.
+        const systemInstruction = `You are a professional translation QA specialist for website copy and marketing content.
 
-Requirements:
-1) Identify mistakes briefly.
-2) If there are mistakes, provide a corrected translation in the same structure.
-3) If no issues, set correctedTranslation to an empty string.
-4) Return ONLY valid JSON with this exact schema:
+Your job is to evaluate whether a translation sounds completely natural to a native ${targetLangName} speaker — not just technically correct.
+
+Evaluate for:
+- Naturalness and idiomatic fluency (most important — would a native speaker write it this way?)
+- Faithfulness to the source meaning and persuasive intent
+- Tone and register match (energetic copy stays energetic, formal stays formal, casual stays casual)
+- Cultural appropriateness for ${targetLangName}-speaking audiences
+- Code/markup preservation (HTML tags, template variables, URLs must be completely unchanged)
+
+Return ONLY valid JSON with this exact schema:
 {
   "hasIssues": boolean,
   "issues": string[],
   "correctedTranslation": string
 }
 
-Source text:
+Rules:
+- issues: brief, specific descriptions of each problem found
+- correctedTranslation: the full corrected translation if hasIssues is true, otherwise empty string ""
+- Do not include any text outside the JSON object`;
+
+        const userPrompt = `Source text:
 ${originalText}
 
-Target language:
-${targetLang}
+Target language: ${targetLangName}
 
 Translated text to review:
 ${translatedText}`;
@@ -126,13 +124,16 @@ ${translatedText}`;
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+                system_instruction: {
+                    parts: [{ text: systemInstruction }],
+                },
                 contents: [
                     {
-                        parts: [{ text: prompt }],
+                        parts: [{ text: userPrompt }],
                     },
                 ],
                 generationConfig: {
-                    temperature: 0.1,
+                    temperature: 0.3,
                     topP: 0.95,
                     maxOutputTokens: reviewMaxTokens,
                 },
