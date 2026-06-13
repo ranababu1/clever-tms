@@ -11,7 +11,7 @@ export const LANGUAGE_NAMES: Record<string, string> = {
 export const MODELS = [
   { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
   { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-  { id: "gemini-3.1-flash-lite-preview", label: "Gemini 3.1 Flash Lite (Preview)" },
+  { id: "gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite" },
   { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (Preview)" },
   { id: "gemini-3-flash-preview", label: "Gemini 3 Flash" },
   { id: "gemini-flash-latest", label: "Gemini Flash (Latest)" },

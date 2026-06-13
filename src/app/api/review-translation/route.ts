@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LANGUAGE_NAMES, MODEL_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS } from "@/lib/translation-models";
+import { getGeminiClient } from "@/lib/gemini-client";
 
 interface ReviewRequest {
     originalText: string;
     translatedText: string;
     targetLang: string;
     model: string;
-    apiKey: string;
 }
 
 interface ParsedReview {
@@ -61,26 +61,19 @@ function parseReviewJson(text: string): ParsedReview {
 export async function POST(request: NextRequest) {
     try {
         const body: ReviewRequest = await request.json();
-        const { originalText, translatedText, targetLang, model, apiKey } = body;
+        const { originalText, translatedText, targetLang, model } = body;
 
         if (!originalText || !originalText.trim()) {
             return NextResponse.json({ error: "Original text is required." }, { status: 400 });
         }
-
         if (!translatedText || !translatedText.trim()) {
             return NextResponse.json({ error: "Translated text is required." }, { status: 400 });
         }
-
         if (!targetLang) {
             return NextResponse.json({ error: "Target language is required." }, { status: 400 });
         }
-
         if (!model) {
             return NextResponse.json({ error: "Model selection is required." }, { status: 400 });
-        }
-
-        if (!apiKey || !apiKey.trim()) {
-            return NextResponse.json({ error: "API key is required." }, { status: 400 });
         }
 
         const targetLangName = LANGUAGE_NAMES[targetLang] || targetLang;
@@ -118,37 +111,19 @@ Target language: ${targetLangName}
 Translated text to review:
 ${translatedText}`;
 
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-        const geminiResponse = await fetch(geminiUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                system_instruction: {
-                    parts: [{ text: systemInstruction }],
-                },
-                contents: [
-                    {
-                        parts: [{ text: userPrompt }],
-                    },
-                ],
-                generationConfig: {
-                    temperature: 0.3,
-                    topP: 0.95,
-                    maxOutputTokens: reviewMaxTokens,
-                },
-            }),
+        const ai = getGeminiClient();
+        const response = await ai.models.generateContent({
+            model,
+            contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+            config: {
+                systemInstruction,
+                temperature: 0.3,
+                topP: 0.95,
+                maxOutputTokens: reviewMaxTokens,
+            },
         });
 
-        if (!geminiResponse.ok) {
-            const errorData = await geminiResponse.json().catch(() => ({}));
-            const errorMessage =
-                errorData?.error?.message || `Gemini API error: ${geminiResponse.status}`;
-            return NextResponse.json({ error: errorMessage }, { status: 500 });
-        }
-
-        const data = await geminiResponse.json();
-        const reviewText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        const reviewText = response.text;
 
         if (!reviewText) {
             return NextResponse.json(
@@ -158,18 +133,13 @@ ${translatedText}`;
         }
 
         const parsed = parseReviewJson(reviewText);
-
         return NextResponse.json(parsed);
     } catch (error) {
         console.error("Review API error:", error);
-
         if (error instanceof SyntaxError) {
             return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
         }
-
-        return NextResponse.json(
-            { error: "An unexpected error occurred. Please try again." },
-            { status: 500 }
-        );
+        const message = error instanceof Error ? error.message : "An unexpected error occurred.";
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { getPromptTemplateForLang } from "@/lib/translation-system-prompt";
 import { MODELS, MODEL_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS, LANGUAGE_NAMES } from "@/lib/translation-models";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -15,9 +16,7 @@ const LANGUAGES = [
   { code: "vi", label: "Vietnamese" },
 ] as const;
 
-const TARGET_LANGUAGES = LANGUAGES.filter((l) => l.code !== "auto");
-const API_KEY_STORAGE_KEY = "gemini_translator_api_key";
-const API_KEY_UPDATED_EVENT = "gemini-api-key-updated";
+const TARGET_LANGUAGES = LANGUAGES.filter((l) => ["de", "tr", "vi"].includes(l.code));
 const REVIEW_START_DELAY_MS = 5000;
 
 const LOADING_MESSAGES = [
@@ -30,21 +29,8 @@ const LOADING_MESSAGES = [
   "Cutting hours of manual effort",
 ] as const;
 
-// Rules 6–10 are hardcoded in the API route and appended automatically.
+// Rules for code/markup preservation and output formatting are hardcoded in the API route and appended automatically.
 // Only the language/tone instructions belong here for the user to edit.
-const DEFAULT_SYSTEM_PROMPT = `You are a professional translator specializing in website copy and marketing content for real-world end users.
-
-Your goal is NATURAL, IDIOMATIC translation — not literal word-for-word conversion. The output must read as if it were originally written in {targetLang} by a native speaker who understands the brand, tone, and audience.
-
-The source language is {sourceLang}.
-The target language is {targetLang}.
-
-TRANSLATION PRINCIPLES:
-1. Prioritize naturalness and fluency over literal accuracy. Rephrase and restructure sentences so the result feels completely native — never translated.
-2. Match the tone and register of the source: energetic marketing copy stays energetic, formal text stays formal, casual copy stays casual.
-3. Adapt idioms, expressions, and cultural references so they resonate naturally with {targetLang}-speaking audiences.
-4. Keep calls-to-action punchy and persuasive in the target language — do not translate them word-for-word.
-5. Preserve brand voice, rhythm, and persuasive intent.`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -117,8 +103,7 @@ export default function GodModeApp() {
   const [translatedText, setTranslatedText] = useState("");
   const [selectedModel, setSelectedModel] = useState<string>("gemini-2.5-flash");
   const [sourceLang, setSourceLang] = useState("auto");
-  const [targetLang, setTargetLang] = useState("es");
-  const [apiKey, setApiKey] = useState("");
+  const [targetLang, setTargetLang] = useState("tr");
   const [isLoading, setIsLoading] = useState(false);
   const [isReviewLoading, setIsReviewLoading] = useState(false);
   const [isReviewPending, setIsReviewPending] = useState(false);
@@ -142,7 +127,7 @@ export default function GodModeApp() {
   const [seed, setSeed] = useState<string>("");
   const [stopSequences, setStopSequences] = useState<string[]>([]);
   const [stopInput, setStopInput] = useState("");
-  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
+  const [systemPrompt, setSystemPrompt] = useState(() => getPromptTemplateForLang("de"));
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const activeMaxOutputTokens = MODEL_MAX_OUTPUT_TOKENS[selectedModel] ?? DEFAULT_MAX_OUTPUT_TOKENS;
@@ -150,22 +135,6 @@ export default function GodModeApp() {
   useEffect(() => {
     setMaxTokens((prev) => Math.min(prev, activeMaxOutputTokens));
   }, [activeMaxOutputTokens]);
-
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(API_KEY_STORAGE_KEY);
-      if (stored) setApiKey(stored);
-    } catch { /* sessionStorage not available */ }
-  }, []);
-
-  useEffect(() => {
-    const handler = () => {
-      try { setApiKey(sessionStorage.getItem(API_KEY_STORAGE_KEY) || ""); }
-      catch { /* sessionStorage not available */ }
-    };
-    window.addEventListener(API_KEY_UPDATED_EVENT, handler);
-    return () => window.removeEventListener(API_KEY_UPDATED_EVENT, handler);
-  }, []);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -239,7 +208,6 @@ export default function GodModeApp() {
         sourceLang,
         targetLang,
         model: selectedModel,
-        apiKey,
         systemPrompt,
         temperature: creativity,
         topP,
@@ -264,7 +232,7 @@ export default function GodModeApp() {
       console.groupEnd();
     }
     return data.translatedText as string;
-  }, [apiKey, inputText, selectedModel, sourceLang, targetLang, systemPrompt, creativity, topP, topK, maxTokens, presencePenalty, frequencyPenalty, seed, stopSequences]);
+  }, [inputText, selectedModel, sourceLang, targetLang, systemPrompt, creativity, topP, topK, maxTokens, presencePenalty, frequencyPenalty, seed, stopSequences]);
 
   const requestReview = useCallback(async (draft: string) => {
     const response = await fetch("/api/review-translation", {
@@ -275,7 +243,6 @@ export default function GodModeApp() {
         translatedText: draft,
         targetLang: LANGUAGE_NAMES[targetLang] || targetLang,
         model: selectedModel,
-        apiKey,
       }),
     });
     const data = await response.json();
@@ -283,21 +250,19 @@ export default function GodModeApp() {
     setReviewHasIssues(Boolean(data.hasIssues));
     setReviewSummary(Array.isArray(data.issues) ? data.issues.slice(0, 5) : []);
     setCorrectedVersion(data.correctedTranslation || null);
-  }, [apiKey, inputText, selectedModel, targetLang]);
+  }, [inputText, selectedModel, targetLang]);
 
   const handleTranslate = useCallback(async () => {
     if (!inputText.trim()) { setError("Please enter some text to translate."); return; }
-    if (!apiKey.trim()) { setError("Please enter your Gemini API key."); return; }
     setIsLoading(true); setError(null); setTranslatedText(""); setReviewSummary([]);
     setCorrectedVersion(null); setReviewHasIssues(false); setActivePanel("output");
     try { await requestTranslation(); }
     catch (err) { setError(err instanceof Error ? err.message : "An unexpected error occurred."); }
     finally { setIsLoading(false); }
-  }, [apiKey, inputText, requestTranslation]);
+  }, [inputText, requestTranslation]);
 
   const handleTranslateAndReview = useCallback(async () => {
     if (!inputText.trim()) { setError("Please enter some text to translate."); return; }
-    if (!apiKey.trim()) { setError("Please enter your Gemini API key."); return; }
     setIsLoading(true); setIsReviewLoading(false); setIsReviewPending(false);
     setError(null); setTranslatedText(""); setReviewSummary([]);
     setCorrectedVersion(null); setReviewHasIssues(false); setActivePanel("output");
@@ -310,7 +275,7 @@ export default function GodModeApp() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally { setIsLoading(false); setIsReviewPending(false); setIsReviewLoading(false); }
-  }, [apiKey, inputText, requestReview, requestTranslation]);
+  }, [inputText, requestReview, requestTranslation]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -371,7 +336,7 @@ export default function GodModeApp() {
             <span className="text-[10px] font-semibold text-amber-400/80 uppercase tracking-wider font-display">Prompt Lab</span>
           </div>
           <button type="button"
-            onClick={() => { setCreativity(0.7); setTopP(0.95); setTopK(40); setMaxTokens(activeMaxOutputTokens); setPresencePenalty(0); setFrequencyPenalty(0); setSeed(""); setStopSequences([]); setSystemPrompt(DEFAULT_SYSTEM_PROMPT); }}
+            onClick={() => { setCreativity(0.7); setTopP(0.95); setTopK(40); setMaxTokens(activeMaxOutputTokens); setPresencePenalty(0); setFrequencyPenalty(0); setSeed(""); setStopSequences([]); setSystemPrompt(getPromptTemplateForLang(targetLang)); }}
             className="text-[11px] text-gray-500 hover:text-amber-400 transition-colors font-display underline underline-offset-2">
             Reset all
           </button>
@@ -519,7 +484,7 @@ export default function GodModeApp() {
               <span className="text-[10px] text-gray-600 font-display hidden sm:inline">
                 <code className="text-gray-500">{"{sourceLang}"}</code> and <code className="text-gray-500">{"{targetLang}"}</code> are substituted at request time
               </span>
-              <button type="button" onClick={() => setSystemPrompt(DEFAULT_SYSTEM_PROMPT)}
+              <button type="button" onClick={() => setSystemPrompt(getPromptTemplateForLang(targetLang))}
                 className="text-[11px] text-gray-500 hover:text-amber-400 transition-colors font-display underline underline-offset-2 whitespace-nowrap">
                 Reset
               </button>
@@ -537,7 +502,6 @@ export default function GodModeApp() {
         <div className="flex items-center gap-2 mb-4">
           <button type="button" onClick={() => setActivePanel("input")} className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${activePanel === "input" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"}`}>Input</button>
           <button type="button" onClick={() => setActivePanel("output")} className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${activePanel === "output" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"}`}>Output</button>
-          {!apiKey.trim() && <span className="ml-auto text-[11px] text-amber-300/90 font-display">Set API key to start</span>}
         </div>
 
         {activePanel === "input" ? (
@@ -644,7 +608,7 @@ export default function GodModeApp() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button onClick={handleTranslate}
-                disabled={isLoading || isReviewPending || isReviewLoading || !inputText.trim() || !apiKey.trim()}
+                disabled={isLoading || isReviewPending || isReviewLoading || !inputText.trim()}
                 className={`btn-translate w-full py-3 px-6 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white font-semibold text-sm font-display disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${isLoading && !isReviewLoading ? "btn-translate-live" : ""}`}
                 type="button">
                 {isLoading && !isReviewLoading
@@ -652,7 +616,7 @@ export default function GodModeApp() {
                   : <><IconTranslate /><span>Translate</span><span className="text-white/50 text-xs ml-1 hidden sm:inline">⌘↵</span></>}
               </button>
               <button onClick={handleTranslateAndReview}
-                disabled={isLoading || isReviewPending || isReviewLoading || !inputText.trim() || !apiKey.trim()}
+                disabled={isLoading || isReviewPending || isReviewLoading || !inputText.trim()}
                 className={`btn-translate w-full py-3 px-6 rounded-lg border border-cyan-400/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 font-semibold text-sm font-display disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${(isLoading || isReviewLoading) ? "btn-translate-live" : ""}`}
                 type="button">
                 {isReviewLoading ? <span className="loading-text-shimmer">Reviewing...</span> : <><IconTranslate /><span>Translate and Review</span></>}

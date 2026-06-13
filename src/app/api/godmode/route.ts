@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LANGUAGE_NAMES } from "@/lib/translation-models";
+import { getGeminiClient } from "@/lib/gemini-client";
 
 interface GodModeRequest {
   text: string;
   sourceLang: string;
   targetLang: string;
   model: string;
-  apiKey: string;
   systemPrompt: string;
   temperature: number;
   topP: number;
@@ -33,14 +33,13 @@ export async function POST(request: NextRequest) {
   try {
     const body: GodModeRequest = await request.json();
     const {
-      text, sourceLang, targetLang, model, apiKey,
+      text, sourceLang, targetLang, model,
       systemPrompt, temperature, topP, topK, maxOutputTokens,
       presencePenalty, frequencyPenalty, seed, stopSequences,
     } = body;
 
     if (!text?.trim()) return NextResponse.json({ error: "Text to translate is required." }, { status: 400 });
     if (!targetLang) return NextResponse.json({ error: "Target language is required." }, { status: 400 });
-    if (!apiKey?.trim() || apiKey.length < 10) return NextResponse.json({ error: "Invalid or missing API key." }, { status: 400 });
     if (!model) return NextResponse.json({ error: "Model selection is required." }, { status: 400 });
     if (sourceLang === targetLang && sourceLang !== "auto") {
       return NextResponse.json({ error: "Source and target languages must be different." }, { status: 400 });
@@ -62,6 +61,12 @@ export async function POST(request: NextRequest) {
       maxOutputTokens: Math.max(1, Math.min(65536, Math.round(maxOutputTokens ?? 8192))),
       presencePenalty: Math.max(-2, Math.min(2, presencePenalty ?? 0)),
       frequencyPenalty: Math.max(-2, Math.min(2, frequencyPenalty ?? 0)),
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+      ],
     };
 
     if (seed !== undefined && Number.isFinite(seed)) {
@@ -71,39 +76,23 @@ export async function POST(request: NextRequest) {
     const filteredStop = (stopSequences || []).filter((s) => s.trim());
     if (filteredStop.length > 0) generationConfig.stopSequences = filteredStop;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    const geminiResponse = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: finalSystemPrompt }] },
-        contents: [{ parts: [{ text }] }],
-        generationConfig,
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-        ],
-      }),
+    const ai = getGeminiClient();
+    const response = await ai.models.generateContent({
+      model,
+      contents: [{ role: "user", parts: [{ text }] }],
+      config: {
+        systemInstruction: finalSystemPrompt,
+        ...generationConfig,
+      },
     });
 
-    if (!geminiResponse.ok) {
-      const errorData = await geminiResponse.json().catch(() => ({}));
-      const errorMessage = errorData?.error?.message || `Gemini API error: ${geminiResponse.status}`;
-      if (geminiResponse.status === 401 || geminiResponse.status === 403) return NextResponse.json({ error: "Invalid API key." }, { status: 401 });
-      if (geminiResponse.status === 429) return NextResponse.json({ error: "Rate limit exceeded. Please wait and try again." }, { status: 429 });
-      if (geminiResponse.status === 404) return NextResponse.json({ error: `Model "${model}" not found.` }, { status: 404 });
-      return NextResponse.json({ error: errorMessage }, { status: 500 });
-    }
-
-    const data = await geminiResponse.json();
-    const translatedText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const translatedText = response.text;
 
     if (!translatedText) {
-      const finishReason = data?.candidates?.[0]?.finishReason;
-      if (finishReason === "SAFETY") return NextResponse.json({ error: "Content blocked by safety filters." }, { status: 422 });
+      const finishReason = response.candidates?.[0]?.finishReason;
+      if (String(finishReason) === "SAFETY") {
+        return NextResponse.json({ error: "Content blocked by safety filters." }, { status: 422 });
+      }
       return NextResponse.json({ error: "No translation returned. The model may have produced empty output." }, { status: 500 });
     }
 
@@ -113,14 +102,15 @@ export async function POST(request: NextRequest) {
       sourceLang,
       targetLang,
       usage: {
-        inputTokens: data?.usageMetadata?.promptTokenCount ?? 0,
-        outputTokens: data?.usageMetadata?.candidatesTokenCount ?? 0,
-        totalTokens: data?.usageMetadata?.totalTokenCount ?? 0,
+        inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
+        outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+        totalTokens: response.usageMetadata?.totalTokenCount ?? 0,
       },
     });
   } catch (error) {
     console.error("God Mode API error:", error);
     if (error instanceof SyntaxError) return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
-    return NextResponse.json({ error: "An unexpected error occurred." }, { status: 500 });
+    const message = error instanceof Error ? error.message : "An unexpected error occurred.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

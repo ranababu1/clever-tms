@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { MODELS, MODEL_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS, LANGUAGE_NAMES } from "@/lib/translation-models";
-
-// ─── Constants ───────────────────────────────────────────────────────────────
+import {
+  CLAUDE_MODELS,
+  CLAUDE_MODEL_MAX_OUTPUT_TOKENS,
+  CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS,
+} from "@/lib/claude-translation-models";
 
 const LANGUAGES = [
   { code: "auto", label: "Auto-detect" },
@@ -17,19 +19,18 @@ const LANGUAGES = [
 
 const TARGET_LANGUAGES = LANGUAGES.filter((l) => ["de", "tr", "vi"].includes(l.code));
 
-const TARGET_LANG_STORAGE_KEY = "gemini_translator_target_lang";
-const REVIEW_START_DELAY_MS = 5000;
+const API_KEY_STORAGE_KEY = "claude_translator_api_key";
+const TARGET_LANG_STORAGE_KEY = "claude_translator_target_lang";
+const API_KEY_UPDATED_EVENT = "claude-api-key-updated";
+
 const LOADING_MESSAGES = [
-  "Powered by Google AI",
+  "Powered by Anthropic Models",
   "Inference pipeline initialized",
   "Optimizing translation quality",
-  "Retaining output structure",
   "Preserving context and tone",
   "Formatting output for quick use",
   "Cutting hours of manual effort",
 ] as const;
-
-// ─── Icons (inline SVG) ─────────────────────────────────────────────────────
 
 function IconCopy() {
   return (
@@ -79,26 +80,19 @@ function IconClear() {
   );
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
-
-export default function TranslatorApp() {
-  // State
+export default function TranslatorClaudeApp() {
   const [inputText, setInputText] = useState("");
   const [translatedText, setTranslatedText] = useState("");
-  const [selectedModel, setSelectedModel] = useState<string>("gemini-3.1-flash-lite-preview");
+  const [selectedModel, setSelectedModel] = useState<string>("claude-sonnet-4-6");
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("tr");
+  const [apiKey, setApiKey] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isReviewLoading, setIsReviewLoading] = useState(false);
-  const [isReviewPending, setIsReviewPending] = useState(false);
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [charCount, setCharCount] = useState(0);
   const [activePanel, setActivePanel] = useState<"input" | "output">("input");
-  const [reviewSummary, setReviewSummary] = useState<string[]>([]);
-  const [correctedVersion, setCorrectedVersion] = useState<string | null>(null);
-  const [reviewHasIssues, setReviewHasIssues] = useState(false);
   const [tokenUsage, setTokenUsage] = useState<{
     inputTokens: number;
     outputTokens: number;
@@ -106,11 +100,33 @@ export default function TranslatorApp() {
   } | null>(null);
 
   const activeMaxOutputTokens =
-    MODEL_MAX_OUTPUT_TOKENS[selectedModel] ?? DEFAULT_MAX_OUTPUT_TOKENS;
+    CLAUDE_MODEL_MAX_OUTPUT_TOKENS[selectedModel] ?? CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS;
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load target language from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(API_KEY_STORAGE_KEY);
+      if (stored) setApiKey(stored);
+    } catch {
+      /* sessionStorage not available */
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleApiKeyUpdated = () => {
+      try {
+        const stored = sessionStorage.getItem(API_KEY_STORAGE_KEY) || "";
+        setApiKey(stored);
+      } catch {
+        /* sessionStorage not available */
+      }
+    };
+
+    window.addEventListener(API_KEY_UPDATED_EVENT, handleApiKeyUpdated);
+    return () => window.removeEventListener(API_KEY_UPDATED_EVENT, handleApiKeyUpdated);
+  }, []);
+
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem(TARGET_LANG_STORAGE_KEY);
@@ -118,20 +134,19 @@ export default function TranslatorApp() {
         setTargetLang(stored);
       }
     } catch {
-      // sessionStorage not available
+      /* sessionStorage not available */
     }
   }, []);
 
-  const handleTargetLangChange = (value: string) => {
+  const handleTargetLangChange = useCallback((value: string) => {
     setTargetLang(value);
     try {
       sessionStorage.setItem(TARGET_LANG_STORAGE_KEY, value);
     } catch {
-      // sessionStorage not available
+      /* sessionStorage not available */
     }
-  };
+  }, []);
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -140,12 +155,10 @@ export default function TranslatorApp() {
     }
   }, [inputText]);
 
-  // Update char count
   useEffect(() => {
     setCharCount(inputText.length);
   }, [inputText]);
 
-  // Rotate short status messages while translating.
   useEffect(() => {
     if (!isLoading) {
       setLoadingMessageIndex(0);
@@ -159,21 +172,18 @@ export default function TranslatorApp() {
     return () => window.clearInterval(timer);
   }, [isLoading]);
 
-  // Swap languages
   const handleSwapLanguages = useCallback(() => {
     if (sourceLang === "auto") return;
     setSourceLang(targetLang);
     handleTargetLangChange(sourceLang);
-  }, [sourceLang, targetLang]);
+  }, [sourceLang, targetLang, handleTargetLangChange]);
 
-  // Copy to clipboard
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(translatedText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback
       const textarea = document.createElement("textarea");
       textarea.value = translatedText;
       document.body.appendChild(textarea);
@@ -190,131 +200,60 @@ export default function TranslatorApp() {
     setTranslatedText("");
     setError(null);
     setTokenUsage(null);
-    setReviewSummary([]);
-    setCorrectedVersion(null);
-    setReviewHasIssues(false);
-    setIsReviewPending(false);
-    setIsReviewLoading(false);
     setActivePanel("input");
   }, []);
 
-  const requestTranslation = useCallback(async () => {
-    const response = await fetch("/api/translate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: inputText,
-        sourceLang,
-        targetLang,
-        model: selectedModel,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Translation failed.");
-    }
-
-    setTranslatedText(data.translatedText);
-    setActivePanel("output");
-
-    if (data.usage) {
-      setTokenUsage(data.usage);
-      console.group("%c[Gemini] Token Usage", "color:#22d3ee;font-weight:bold");
-      console.log("Input tokens: ", data.usage.inputTokens);
-      console.log("Output tokens:", data.usage.outputTokens);
-      console.log("Total tokens: ", data.usage.totalTokens);
-      console.groupEnd();
-    }
-
-    return data.translatedText as string;
-  }, [inputText, selectedModel, sourceLang, targetLang]);
-
-  const requestReview = useCallback(async (draftTranslation: string) => {
-    const response = await fetch("/api/review-translation", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        originalText: inputText,
-        translatedText: draftTranslation,
-        targetLang: LANGUAGE_NAMES[targetLang] || targetLang,
-        model: selectedModel,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Review failed.");
-    }
-
-    setReviewHasIssues(Boolean(data.hasIssues));
-    setReviewSummary(Array.isArray(data.issues) ? data.issues.slice(0, 5) : []);
-    setCorrectedVersion(data.correctedTranslation || null);
-  }, [inputText, selectedModel, targetLang]);
-
-  // Translate
   const handleTranslate = useCallback(async () => {
     if (!inputText.trim()) {
       setError("Please enter some text to translate.");
       return;
     }
-
-    setIsLoading(true);
-    setError(null);
-    setTranslatedText("");
-    setReviewSummary([]);
-    setCorrectedVersion(null);
-    setReviewHasIssues(false);
-    setActivePanel("output");
-
-    try {
-      await requestTranslation();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [inputText, requestTranslation]);
-
-  const handleTranslateAndReview = useCallback(async () => {
-    if (!inputText.trim()) {
-      setError("Please enter some text to translate.");
+    if (!apiKey.trim()) {
+      setError("Please enter your Anthropic API key.");
       return;
     }
 
     setIsLoading(true);
-    setIsReviewLoading(false);
-    setIsReviewPending(false);
     setError(null);
     setTranslatedText("");
-    setReviewSummary([]);
-    setCorrectedVersion(null);
-    setReviewHasIssues(false);
     setActivePanel("output");
 
     try {
-      const draft = await requestTranslation();
+      const response = await fetch("/api/translate-claude", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: inputText,
+          sourceLang,
+          targetLang,
+          model: selectedModel,
+          apiKey,
+        }),
+      });
 
-      // Stage 1 complete: show translation result before review starts.
-      setIsLoading(false);
-      setIsReviewPending(true);
-      await new Promise((resolve) => window.setTimeout(resolve, REVIEW_START_DELAY_MS));
+      const data = await response.json();
 
-      setIsReviewPending(false);
-      setIsReviewLoading(true);
-      await requestReview(draft);
+      if (!response.ok) {
+        throw new Error(data.error || "Translation failed.");
+      }
+
+      setTranslatedText(data.translatedText);
+
+      if (data.usage) {
+        setTokenUsage(data.usage);
+        console.group("%c[Claude] Token Usage", "color:#c4b5fd;font-weight:bold");
+        console.log("Input tokens: ", data.usage.inputTokens);
+        console.log("Output tokens:", data.usage.outputTokens);
+        console.log("Total tokens: ", data.usage.totalTokens);
+        console.groupEnd();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {
       setIsLoading(false);
-      setIsReviewPending(false);
-      setIsReviewLoading(false);
     }
-  }, [inputText, requestReview, requestTranslation]);
+  }, [apiKey, inputText, selectedModel, sourceLang, targetLang]);
 
-  // Keyboard shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
@@ -328,10 +267,8 @@ export default function TranslatorApp() {
 
   return (
     <div className="flex flex-col gap-5 animate-fade-in">
-      {/* Controls Row */}
       <div className="glass-card p-4">
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,1fr)_minmax(0,2fr)] gap-3 items-end">
-          {/* Model Selection */}
           <div>
             <div className="flex items-center justify-between mb-1.5 gap-2">
               <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block font-display">
@@ -351,7 +288,7 @@ export default function TranslatorApp() {
                 backgroundPosition: "right 12px center",
               }}
             >
-              {MODELS.map((m) => (
+              {CLAUDE_MODELS.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
                 </option>
@@ -359,7 +296,6 @@ export default function TranslatorApp() {
             </select>
           </div>
 
-          {/* Language Selection */}
           <div className="flex items-end gap-2 min-w-0">
             <div className="flex-1">
               <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block font-display">
@@ -386,7 +322,7 @@ export default function TranslatorApp() {
             <button
               onClick={handleSwapLanguages}
               disabled={sourceLang === "auto"}
-              className="mb-0.5 p-2.5 rounded-lg border border-[#2a2d3a] bg-[#12141c] text-gray-400 hover:text-cyan-400 hover:border-cyan-400/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="mb-0.5 p-2.5 rounded-lg border border-[#2a2d3a] bg-[#12141c] text-gray-400 hover:text-violet-300 hover:border-violet-400/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               title="Swap languages"
               type="button"
             >
@@ -418,29 +354,35 @@ export default function TranslatorApp() {
         </div>
       </div>
 
-      {/* Input / Output Tabs */}
       <div className="glass-card p-4 flex flex-col min-h-[520px]">
         <div className="flex items-center gap-2 mb-4">
           <button
             type="button"
             onClick={() => setActivePanel("input")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${activePanel === "input"
-              ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
-              : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
-              }`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${
+              activePanel === "input"
+                ? "bg-violet-500/20 text-violet-200 border border-violet-500/40"
+                : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
+            }`}
           >
             Input
           </button>
           <button
             type="button"
             onClick={() => setActivePanel("output")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${activePanel === "output"
-              ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
-              : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
-              }`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${
+              activePanel === "output"
+                ? "bg-violet-500/20 text-violet-200 border border-violet-500/40"
+                : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
+            }`}
           >
             Output
           </button>
+          {!apiKey.trim() && (
+            <span className="ml-auto text-[11px] text-amber-300/90 font-display">
+              Set API key from top nav to start translating
+            </span>
+          )}
         </div>
 
         {activePanel === "input" ? (
@@ -452,9 +394,7 @@ export default function TranslatorApp() {
               <div className="flex items-center gap-3">
                 <span className="text-[10px] text-gray-500 font-display tabular-nums">
                   {charCount.toLocaleString()} chars
-                  {charCount > 0 && (
-                    <> | ~{Math.ceil(charCount / 4).toLocaleString()} tokens</>
-                  )}
+                  {charCount > 0 && <> | ~{Math.ceil(charCount / 4).toLocaleString()} tokens</>}
                 </span>
                 {inputText && (
                   <button
@@ -484,12 +424,12 @@ export default function TranslatorApp() {
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider font-display">
                 Output
               </span>
-              {(translatedText || isReviewLoading) && (
+              {translatedText && (
                 <div className="flex items-center gap-3">
                   {translatedText && !isLoading && (
                     <button
                       onClick={resetTranslationState}
-                      className="text-xs text-gray-400 hover:text-cyan-400 transition-colors font-display"
+                      className="text-xs text-gray-400 hover:text-violet-300 transition-colors font-display"
                       type="button"
                     >
                       New Translation
@@ -497,13 +437,11 @@ export default function TranslatorApp() {
                   )}
                   <span className="text-[10px] text-gray-500 font-display tabular-nums">
                     {translatedText.length.toLocaleString()} chars
-                    {tokenUsage && (
-                      <> | {tokenUsage.outputTokens.toLocaleString()} tokens</>
-                    )}
+                    {tokenUsage && <> | {tokenUsage.outputTokens.toLocaleString()} tokens</>}
                   </span>
                   <button
                     onClick={handleCopy}
-                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-cyan-400 transition-colors font-display"
+                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-violet-300 transition-colors font-display"
                     type="button"
                   >
                     {copied ? (
@@ -540,12 +478,10 @@ export default function TranslatorApp() {
                   <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 text-lg">
                     !
                   </div>
-                  <p className="text-sm text-red-400 text-center max-w-sm leading-relaxed">
-                    {error}
-                  </p>
+                  <p className="text-sm text-red-400 text-center max-w-sm leading-relaxed">{error}</p>
                   <button
                     onClick={handleTranslate}
-                    className="mt-1 text-xs text-gray-400 hover:text-cyan-400 transition-colors font-display underline underline-offset-2"
+                    className="mt-1 text-xs text-gray-400 hover:text-violet-300 transition-colors font-display underline underline-offset-2"
                     type="button"
                   >
                     Try again
@@ -563,55 +499,6 @@ export default function TranslatorApp() {
                 </div>
               )}
             </div>
-
-            {translatedText && (
-              <div className="mt-3 p-3 rounded-lg border border-[#2a2d3a] bg-[#12141c]">
-                {isReviewPending ? (
-                  <div className="flex items-center gap-2 text-xs text-blue-300 font-display">
-                    <span className="inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                    Translation agent done. Starting review agent in 5 seconds...
-                  </div>
-                ) : isReviewLoading ? (
-                  <div className="flex items-center gap-2 text-xs text-cyan-300 font-display">
-                    <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                    Review agent working on quality and accuracy checks...
-                  </div>
-                ) : reviewSummary.length > 0 || reviewHasIssues ? (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold font-display text-gray-300 uppercase tracking-wider">
-                      Review Summary
-                    </p>
-                    {reviewSummary.length > 0 ? (
-                      <ul className="text-xs text-gray-300 space-y-1 font-display list-disc list-inside">
-                        {reviewSummary.map((issue, idx) => (
-                          <li key={`${issue}-${idx}`}>{issue}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs text-emerald-300 font-display">
-                        No issues found. Translation looks good.
-                      </p>
-                    )}
-                    {reviewHasIssues && correctedVersion && (
-                      <button
-                        onClick={() => {
-                          setTranslatedText(correctedVersion);
-                          setReviewHasIssues(false);
-                        }}
-                        className="mt-1 px-3 py-2 rounded-md border border-cyan-500/30 text-xs text-cyan-300 hover:text-cyan-200 hover:border-cyan-400/50 transition-colors font-display"
-                        type="button"
-                      >
-                        Provide corrected version
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500 font-display">
-                    Use Translate and Review for a second-pass quality check.
-                  </p>
-                )}
-              </div>
-            )}
           </>
         )}
 
@@ -619,49 +506,33 @@ export default function TranslatorApp() {
           {translatedText && !isLoading ? (
             <button
               onClick={resetTranslationState}
-              className="w-full py-3 px-6 rounded-lg border border-[#2a2d3a] bg-[#12141c] text-gray-400 hover:text-cyan-400 hover:border-cyan-400/40 font-semibold text-sm font-display transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              className="w-full py-3 px-6 rounded-lg border border-[#2a2d3a] bg-[#12141c] text-gray-400 hover:text-violet-300 hover:border-violet-400/40 font-semibold text-sm font-display transition-all active:scale-[0.98] flex items-center justify-center gap-2"
               type="button"
             >
               <IconClear />
               <span>New Translation</span>
             </button>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                onClick={handleTranslate}
-                disabled={isLoading || isReviewPending || isReviewLoading || !inputText.trim()}
-                className={`btn-translate w-full py-3 px-6 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white font-semibold text-sm font-display disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${isLoading && !isReviewLoading ? "btn-translate-live" : ""}`}
-                type="button"
-              >
-                {isLoading && !isReviewLoading ? (
-                  <span className="inline-flex items-center gap-2">
-                    <span className="loading-text-shimmer">Translating...</span>
-                  </span>
-                ) : (
-                  <>
-                    <IconTranslate />
-                    <span>Translate</span>
-                    <span className="text-white/50 text-xs ml-1 hidden sm:inline">⌘↵</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={handleTranslateAndReview}
-                disabled={isLoading || isReviewPending || isReviewLoading || !inputText.trim()}
-                className={`btn-translate w-full py-3 px-6 rounded-lg border border-cyan-400/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 font-semibold text-sm font-display disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${(isLoading || isReviewLoading) ? "btn-translate-live" : ""}`}
-                type="button"
-              >
-                {isReviewLoading ? (
-                  <span className="loading-text-shimmer">Reviewing...</span>
-                ) : (
-                  <>
-                    <IconTranslate />
-                    <span>Translate and Review</span>
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              onClick={handleTranslate}
+              disabled={isLoading || !inputText.trim() || !apiKey.trim()}
+              className={`btn-translate w-full py-3 px-6 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm font-display disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
+                isLoading ? "btn-translate-live" : ""
+              }`}
+              type="button"
+            >
+              {isLoading ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="loading-text-shimmer">Translating...</span>
+                </span>
+              ) : (
+                <>
+                  <IconTranslate />
+                  <span>Translate</span>
+                  <span className="text-white/50 text-xs ml-1 hidden sm:inline">⌘↵</span>
+                </>
+              )}
+            </button>
           )}
         </div>
       </div>

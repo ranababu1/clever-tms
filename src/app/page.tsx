@@ -68,14 +68,12 @@ export default function Home() {
                 Start Translating
                 <span className="ml-2 inline-block transition-transform group-hover:translate-x-1">&rarr;</span>
               </Link>
-              <a
-                href="https://aistudio.google.com/apikey"
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                href="/translate/claude"
                 className="text-sm leading-none pt-0.5 text-gray-400 hover:text-cyan-400 transition-colors font-display underline underline-offset-4 decoration-gray-600 hover:decoration-cyan-400/50"
               >
-                Get your Gemini API key
-              </a>
+                And now with Claude&rarr;
+              </Link>
             </div>
           </div>
 
