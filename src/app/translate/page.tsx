@@ -54,12 +54,6 @@ export default function TranslatePage() {
                 </p>
               </div>
             </a>
-            <Link
-              href="/translate/claude"
-              className="hidden sm:inline text-[11px] text-gray-500 hover:text-violet-300 font-display ml-2 shrink-0"
-            >
-              Claude translator →
-            </Link>
           </div>
           <div className="flex items-center gap-4 shrink-0">
             <button
@@ -89,8 +83,12 @@ export default function TranslatePage() {
       {/* Footer */}
       <footer className="w-full border-t border-[#2a2d3a] py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <p className="text-center text-xs text-gray-500 font-display">
-            Powered by Google Gemini
+          <p className="text-center text-xs text-gray-500 font-display flex items-center justify-center gap-2">
+            <span>Powered by Google Gemini</span>
+            <span className="text-gray-600">·</span>
+            <Link href="/translate/claude" className="text-gray-500 hover:text-violet-300 transition-colors">
+              Claude translator →
+            </Link>
           </p>
         </div>
       </footer>

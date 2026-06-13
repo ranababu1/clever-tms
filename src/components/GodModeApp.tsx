@@ -335,17 +335,20 @@ export default function GodModeApp() {
           <div>
             <div className="flex items-center justify-between mb-1.5 gap-2">
               <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider font-display">Model</label>
-              <span className="text-[10px] text-gray-500 font-display tabular-nums whitespace-nowrap">Max: {activeMaxOutputTokens.toLocaleString()} tokens</span>
+              <div className="token-meta-slider text-[10px] text-gray-500 font-display tabular-nums whitespace-nowrap">
+                <ul className="token-meta-slider-track">
+                  <li className="token-meta-item">Max output: {activeMaxOutputTokens.toLocaleString()} tokens</li>
+                  <li className="token-meta-item">Input token limit: {(MODEL_LIMITS[selectedModel]?.inputTokens ?? 1_048_576).toLocaleString()}</li>
+                  <li className="token-meta-item">Output token limit: {(MODEL_LIMITS[selectedModel]?.outputTokens ?? activeMaxOutputTokens).toLocaleString()}</li>
+                  <li className="token-meta-item" aria-hidden="true">Max output: {activeMaxOutputTokens.toLocaleString()} tokens</li>
+                </ul>
+              </div>
             </div>
             <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}
               className="w-full bg-[#12141c] border border-[#2a2d3a] rounded-lg px-3 py-2.5 text-sm text-gray-200 font-display cursor-pointer transition-all appearance-none"
               style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}>
               {MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
-            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500 font-display tabular-nums">
-              <span>Input token limit: {(MODEL_LIMITS[selectedModel]?.inputTokens ?? 1_048_576).toLocaleString()}</span>
-              <span>Output token limit: {(MODEL_LIMITS[selectedModel]?.outputTokens ?? activeMaxOutputTokens).toLocaleString()}</span>
-            </div>
           </div>
           <div className="flex items-end gap-2 min-w-0">
             <div className="flex-1">

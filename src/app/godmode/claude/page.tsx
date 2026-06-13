@@ -54,12 +54,6 @@ export default function GodModeClaudePage() {
                 Full Control Unleashed
               </p>
             </div>
-            <Link
-              href="/godmode"
-              className="hidden md:inline text-[11px] text-gray-500 hover:text-amber-400 font-display shrink-0"
-            >
-              Gemini god mode →
-            </Link>
           </div>
           <div className="flex items-center gap-4 shrink-0">
             <button
@@ -87,8 +81,12 @@ export default function GodModeClaudePage() {
 
       <footer className="w-full border-t border-[#2a2d3a] py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <p className="text-center text-xs text-gray-600 font-display">
-            Powered by Anthropic Claude · God Mode
+          <p className="text-center text-xs text-gray-600 font-display flex items-center justify-center gap-2">
+            <span>Powered by Anthropic Claude · God Mode</span>
+            <span className="text-gray-700">·</span>
+            <Link href="/godmode" className="text-gray-500 hover:text-amber-400 transition-colors">
+              Gemini god mode →
+            </Link>
           </p>
         </div>
       </footer>

@@ -382,9 +382,14 @@ export default function TranslatorApp() {
               <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block font-display">
                 Model
               </label>
-              <span className="text-[10px] text-gray-500 font-display tabular-nums whitespace-nowrap">
-                Max output: {activeMaxOutputTokens.toLocaleString()} tokens
-              </span>
+              <div className="token-meta-slider text-[10px] text-gray-500 font-display tabular-nums whitespace-nowrap">
+                <ul className="token-meta-slider-track">
+                  <li className="token-meta-item">Max output: {activeMaxOutputTokens.toLocaleString()} tokens</li>
+                  <li className="token-meta-item">Input token limit: {(MODEL_LIMITS[selectedModel]?.inputTokens ?? 1_048_576).toLocaleString()}</li>
+                  <li className="token-meta-item">Output token limit: {(MODEL_LIMITS[selectedModel]?.outputTokens ?? activeMaxOutputTokens).toLocaleString()}</li>
+                  <li className="token-meta-item" aria-hidden="true">Max output: {activeMaxOutputTokens.toLocaleString()} tokens</li>
+                </ul>
+              </div>
             </div>
             <select
               value={selectedModel}
@@ -402,10 +407,6 @@ export default function TranslatorApp() {
                 </option>
               ))}
             </select>
-            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500 font-display tabular-nums">
-              <span>Input token limit: {(MODEL_LIMITS[selectedModel]?.inputTokens ?? 1_048_576).toLocaleString()}</span>
-              <span>Output token limit: {(MODEL_LIMITS[selectedModel]?.outputTokens ?? activeMaxOutputTokens).toLocaleString()}</span>
-            </div>
           </div>
 
           {/* Language Selection */}

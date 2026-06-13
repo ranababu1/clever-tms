@@ -190,6 +190,46 @@ select option {
   }
 }
 
+@keyframes tokenMetaSlide {
+  0%, 22% {
+    transform: translateY(0);
+  }
+
+  33%, 55% {
+    transform: translateY(calc(-1 * var(--token-meta-line-height)));
+  }
+
+  66%, 88% {
+    transform: translateY(calc(-2 * var(--token-meta-line-height)));
+  }
+
+  100% {
+    transform: translateY(calc(-3 * var(--token-meta-line-height)));
+  }
+}
+
+.token-meta-slider {
+  --token-meta-line-height: 1.35em;
+  display: block;
+  height: var(--token-meta-line-height);
+  overflow: hidden;
+}
+
+.token-meta-slider-track {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: block;
+  will-change: transform;
+  animation: tokenMetaSlide 7.2s cubic-bezier(0.7, 0.1, 0.1, 1) infinite;
+}
+
+.token-meta-item {
+  display: block;
+  min-height: var(--token-meta-line-height);
+  line-height: var(--token-meta-line-height);
+}
+
 @keyframes floatY {
 
   0%,

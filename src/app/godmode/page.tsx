@@ -55,12 +55,6 @@ export default function GodModePage() {
                 Full Control Unleashed
               </p>
             </div>
-            <Link
-              href="/godmode/claude"
-              className="hidden md:inline text-[11px] text-gray-500 hover:text-violet-300 transition-colors font-display shrink-0"
-            >
-              Claude god mode →
-            </Link>
           </div>
           <div className="flex items-center gap-4 shrink-0">
             <button
@@ -90,8 +84,12 @@ export default function GodModePage() {
       {/* Footer */}
       <footer className="w-full border-t border-[#2a2d3a] py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <p className="text-center text-xs text-gray-600 font-display">
-            Powered by Google Gemini · God Mode
+          <p className="text-center text-xs text-gray-600 font-display flex items-center justify-center gap-2">
+            <span>Powered by Google Gemini · God Mode</span>
+            <span className="text-gray-700">·</span>
+            <Link href="/godmode/claude" className="text-gray-500 hover:text-violet-300 transition-colors">
+              Claude god mode →
+            </Link>
           </p>
         </div>
       </footer>
