@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { HarmBlockThreshold, HarmCategory } from "@google/genai";
 import { MODEL_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS } from "@/lib/translation-models";
 import { buildTranslationSystemPrompt } from "@/lib/translation-system-prompt";
 import { getGeminiClient } from "@/lib/gemini-client";
@@ -8,12 +9,13 @@ interface TranslateRequest {
   sourceLang: string;
   targetLang: string;
   model: string;
+  apiKey: string;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: TranslateRequest = await request.json();
-    const { text, sourceLang, targetLang, model } = body;
+    const { text, sourceLang, targetLang, model, apiKey } = body;
 
     if (!text || !text.trim()) {
       return NextResponse.json({ error: "Text to translate is required." }, { status: 400 });
@@ -28,10 +30,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Source and target languages must be different." }, { status: 400 });
     }
 
+    if (!apiKey || apiKey.trim().length < 10) {
+      return NextResponse.json({ error: "A valid Gemini API key is required." }, { status: 400 });
+    }
+
     const systemPrompt = buildTranslationSystemPrompt(sourceLang, targetLang);
     const maxOutputTokens = MODEL_MAX_OUTPUT_TOKENS[model] ?? DEFAULT_MAX_OUTPUT_TOKENS;
 
-    const ai = getGeminiClient();
+    const ai = getGeminiClient(apiKey);
     const response = await ai.models.generateContent({
       model,
       contents: [{ role: "user", parts: [{ text }] }],
@@ -41,10 +47,10 @@ export async function POST(request: NextRequest) {
         topP: 0.95,
         maxOutputTokens,
         safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
         ],
       },
     });

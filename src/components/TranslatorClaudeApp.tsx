@@ -5,6 +5,7 @@ import {
   CLAUDE_MODELS,
   CLAUDE_MODEL_MAX_OUTPUT_TOKENS,
   CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS,
+  CLAUDE_MODEL_PRICING,
 } from "@/lib/claude-translation-models";
 
 const LANGUAGES = [
@@ -98,6 +99,8 @@ export default function TranslatorClaudeApp() {
     outputTokens: number;
     totalTokens: number;
   } | null>(null);
+  const [translationCost, setTranslationCost] = useState<number | null>(null);
+  const [totalCost, setTotalCost] = useState(0);
 
   const activeMaxOutputTokens =
     CLAUDE_MODEL_MAX_OUTPUT_TOKENS[selectedModel] ?? CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS;
@@ -200,6 +203,7 @@ export default function TranslatorClaudeApp() {
     setTranslatedText("");
     setError(null);
     setTokenUsage(null);
+    setTranslationCost(null);
     setActivePanel("input");
   }, []);
 
@@ -241,6 +245,14 @@ export default function TranslatorClaudeApp() {
 
       if (data.usage) {
         setTokenUsage(data.usage);
+        const pricing = CLAUDE_MODEL_PRICING[selectedModel];
+        if (pricing) {
+          const cost =
+            (data.usage.inputTokens / 1_000_000) * pricing.inputPer1M +
+            (data.usage.outputTokens / 1_000_000) * pricing.outputPer1M;
+          setTranslationCost(cost);
+          setTotalCost((prev) => prev + cost);
+        }
         console.group("%c[Claude] Token Usage", "color:#c4b5fd;font-weight:bold");
         console.log("Input tokens: ", data.usage.inputTokens);
         console.log("Output tokens:", data.usage.outputTokens);
@@ -383,6 +395,11 @@ export default function TranslatorClaudeApp() {
               Set API key from top nav to start translating
             </span>
           )}
+          {totalCost > 0 && (
+            <span className="ml-auto text-[11px] text-violet-400/80 font-display tabular-nums">
+              Session: ${totalCost.toFixed(6)}
+            </span>
+          )}
         </div>
 
         {activePanel === "input" ? (
@@ -438,6 +455,7 @@ export default function TranslatorClaudeApp() {
                   <span className="text-[10px] text-gray-500 font-display tabular-nums">
                     {translatedText.length.toLocaleString()} chars
                     {tokenUsage && <> | {tokenUsage.outputTokens.toLocaleString()} tokens</>}
+                    {translationCost != null && <> | ${translationCost.toFixed(6)}</>}
                   </span>
                   <button
                     onClick={handleCopy}

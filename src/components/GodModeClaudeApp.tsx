@@ -6,6 +6,7 @@ import {
   CLAUDE_MODEL_MAX_OUTPUT_TOKENS,
   CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS,
   CLAUDE_GODMODE_MAX_OUTPUT_CAP,
+  CLAUDE_MODEL_PRICING,
 } from "@/lib/claude-translation-models";
 import { getPromptTemplateForLang } from "@/lib/translation-system-prompt";
 
@@ -103,6 +104,8 @@ export default function GodModeClaudeApp() {
     outputTokens: number;
     totalTokens: number;
   } | null>(null);
+  const [translationCost, setTranslationCost] = useState<number | null>(null);
+  const [totalCost, setTotalCost] = useState(0);
 
   const [creativity, setCreativity] = useState(0.8);
   const [topK, setTopK] = useState(100);
@@ -203,6 +206,7 @@ export default function GodModeClaudeApp() {
     setTranslatedText("");
     setError(null);
     setTokenUsage(null);
+    setTranslationCost(null);
     setActivePanel("input");
   }, []);
 
@@ -229,6 +233,14 @@ export default function GodModeClaudeApp() {
     setActivePanel("output");
     if (data.usage) {
       setTokenUsage(data.usage);
+      const pricing = CLAUDE_MODEL_PRICING[selectedModel];
+      if (pricing) {
+        const cost =
+          (data.usage.inputTokens / 1_000_000) * pricing.inputPer1M +
+          (data.usage.outputTokens / 1_000_000) * pricing.outputPer1M;
+        setTranslationCost(cost);
+        setTotalCost((prev) => prev + cost);
+      }
       console.group("%c[God Mode · Claude] Token Usage", "color:#f59e0b;font-weight:bold");
       console.log("Input tokens: ", data.usage.inputTokens);
       console.log("Output tokens:", data.usage.outputTokens);
@@ -558,6 +570,9 @@ export default function GodModeClaudeApp() {
           {!apiKey.trim() && (
             <span className="ml-auto text-[11px] text-amber-300/90 font-display">Set API key to start</span>
           )}
+          {totalCost > 0 && (
+            <span className="ml-auto text-[11px] text-amber-400/80 font-display tabular-nums">Session: ${totalCost.toFixed(6)}</span>
+          )}
         </div>
 
         {activePanel === "input" ? (
@@ -612,6 +627,7 @@ export default function GodModeClaudeApp() {
                   <span className="text-[10px] text-gray-500 font-display tabular-nums">
                     {translatedText.length.toLocaleString()} chars
                     {tokenUsage && <> | {tokenUsage.outputTokens.toLocaleString()} tokens</>}
+                    {translationCost != null && <> | ${translationCost.toFixed(6)}</>}
                   </span>
                   <button
                     onClick={handleCopy}

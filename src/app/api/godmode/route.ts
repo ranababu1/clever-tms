@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { HarmBlockThreshold, HarmCategory } from "@google/genai";
 import { LANGUAGE_NAMES } from "@/lib/translation-models";
 import { getGeminiClient } from "@/lib/gemini-client";
 
@@ -8,6 +9,7 @@ interface GodModeRequest {
   targetLang: string;
   model: string;
   systemPrompt: string;
+  apiKey: string;
   temperature: number;
   topP: number;
   topK: number;
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
     const body: GodModeRequest = await request.json();
     const {
       text, sourceLang, targetLang, model,
-      systemPrompt, temperature, topP, topK, maxOutputTokens,
+      apiKey, systemPrompt, temperature, topP, topK, maxOutputTokens,
       presencePenalty, frequencyPenalty, seed, stopSequences,
     } = body;
 
@@ -43,6 +45,9 @@ export async function POST(request: NextRequest) {
     if (!model) return NextResponse.json({ error: "Model selection is required." }, { status: 400 });
     if (sourceLang === targetLang && sourceLang !== "auto") {
       return NextResponse.json({ error: "Source and target languages must be different." }, { status: 400 });
+    }
+    if (!apiKey || apiKey.trim().length < 10) {
+      return NextResponse.json({ error: "A valid Gemini API key is required." }, { status: 400 });
     }
 
     const sourceLangName = sourceLang === "auto" ? "auto-detected" : (LANGUAGE_NAMES[sourceLang] || sourceLang);
@@ -62,10 +67,10 @@ export async function POST(request: NextRequest) {
       presencePenalty: Math.max(-2, Math.min(2, presencePenalty ?? 0)),
       frequencyPenalty: Math.max(-2, Math.min(2, frequencyPenalty ?? 0)),
       safetySettings: [
-        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
       ],
     };
 
@@ -76,7 +81,7 @@ export async function POST(request: NextRequest) {
     const filteredStop = (stopSequences || []).filter((s) => s.trim());
     if (filteredStop.length > 0) generationConfig.stopSequences = filteredStop;
 
-    const ai = getGeminiClient();
+    const ai = getGeminiClient(apiKey);
     const response = await ai.models.generateContent({
       model,
       contents: [{ role: "user", parts: [{ text }] }],

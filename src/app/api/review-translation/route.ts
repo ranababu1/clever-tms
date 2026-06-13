@@ -7,6 +7,7 @@ interface ReviewRequest {
     translatedText: string;
     targetLang: string;
     model: string;
+    apiKey: string;
 }
 
 interface ParsedReview {
@@ -61,7 +62,7 @@ function parseReviewJson(text: string): ParsedReview {
 export async function POST(request: NextRequest) {
     try {
         const body: ReviewRequest = await request.json();
-        const { originalText, translatedText, targetLang, model } = body;
+        const { originalText, translatedText, targetLang, model, apiKey } = body;
 
         if (!originalText || !originalText.trim()) {
             return NextResponse.json({ error: "Original text is required." }, { status: 400 });
@@ -74,6 +75,9 @@ export async function POST(request: NextRequest) {
         }
         if (!model) {
             return NextResponse.json({ error: "Model selection is required." }, { status: 400 });
+        }
+        if (!apiKey || apiKey.trim().length < 10) {
+            return NextResponse.json({ error: "A valid Gemini API key is required." }, { status: 400 });
         }
 
         const targetLangName = LANGUAGE_NAMES[targetLang] || targetLang;
@@ -111,7 +115,7 @@ Target language: ${targetLangName}
 Translated text to review:
 ${translatedText}`;
 
-        const ai = getGeminiClient();
+        const ai = getGeminiClient(apiKey);
         const response = await ai.models.generateContent({
             model,
             contents: [{ role: "user", parts: [{ text: userPrompt }] }],

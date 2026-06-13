@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { MODELS, MODEL_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS, LANGUAGE_NAMES } from "@/lib/translation-models";
+import { MODELS, MODEL_LIMITS, MODEL_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS, LANGUAGE_NAMES, MODEL_PRICING } from "@/lib/translation-models";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -18,6 +18,8 @@ const LANGUAGES = [
 const TARGET_LANGUAGES = LANGUAGES.filter((l) => ["de", "tr", "vi"].includes(l.code));
 
 const TARGET_LANG_STORAGE_KEY = "gemini_translator_target_lang";
+const API_KEY_STORAGE_KEY = "gemini_translator_api_key";
+const API_KEY_UPDATED_EVENT = "gemini-api-key-updated";
 const REVIEW_START_DELAY_MS = 5000;
 const LOADING_MESSAGES = [
   "Powered by Google AI",
@@ -85,7 +87,7 @@ export default function TranslatorApp() {
   // State
   const [inputText, setInputText] = useState("");
   const [translatedText, setTranslatedText] = useState("");
-  const [selectedModel, setSelectedModel] = useState<string>("gemini-3.1-flash-lite-preview");
+  const [selectedModel, setSelectedModel] = useState<string>("gemini-3.1-flash-lite");
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("tr");
   const [isLoading, setIsLoading] = useState(false);
@@ -104,6 +106,9 @@ export default function TranslatorApp() {
     outputTokens: number;
     totalTokens: number;
   } | null>(null);
+  const [apiKey, setApiKey] = useState("");
+  const [translationCost, setTranslationCost] = useState<number | null>(null);
+  const [totalCost, setTotalCost] = useState(0);
 
   const activeMaxOutputTokens =
     MODEL_MAX_OUTPUT_TOKENS[selectedModel] ?? DEFAULT_MAX_OUTPUT_TOKENS;
@@ -120,6 +125,27 @@ export default function TranslatorApp() {
     } catch {
       // sessionStorage not available
     }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(API_KEY_STORAGE_KEY);
+      if (stored) setApiKey(stored);
+    } catch {
+      /* sessionStorage not available */
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      try {
+        setApiKey(sessionStorage.getItem(API_KEY_STORAGE_KEY) || "");
+      } catch {
+        /* sessionStorage not available */
+      }
+    };
+    window.addEventListener(API_KEY_UPDATED_EVENT, handler);
+    return () => window.removeEventListener(API_KEY_UPDATED_EVENT, handler);
   }, []);
 
   const handleTargetLangChange = (value: string) => {
@@ -190,6 +216,7 @@ export default function TranslatorApp() {
     setTranslatedText("");
     setError(null);
     setTokenUsage(null);
+    setTranslationCost(null);
     setReviewSummary([]);
     setCorrectedVersion(null);
     setReviewHasIssues(false);
@@ -207,6 +234,7 @@ export default function TranslatorApp() {
         sourceLang,
         targetLang,
         model: selectedModel,
+        apiKey,
       }),
     });
 
@@ -221,6 +249,14 @@ export default function TranslatorApp() {
 
     if (data.usage) {
       setTokenUsage(data.usage);
+      const pricing = MODEL_PRICING[selectedModel];
+      if (pricing) {
+        const cost =
+          (data.usage.inputTokens / 1_000_000) * pricing.inputPer1M +
+          (data.usage.outputTokens / 1_000_000) * pricing.outputPer1M;
+        setTranslationCost(cost);
+        setTotalCost((prev) => prev + cost);
+      }
       console.group("%c[Gemini] Token Usage", "color:#22d3ee;font-weight:bold");
       console.log("Input tokens: ", data.usage.inputTokens);
       console.log("Output tokens:", data.usage.outputTokens);
@@ -240,6 +276,7 @@ export default function TranslatorApp() {
         translatedText: draftTranslation,
         targetLang: LANGUAGE_NAMES[targetLang] || targetLang,
         model: selectedModel,
+        apiKey,
       }),
     });
 
@@ -258,6 +295,10 @@ export default function TranslatorApp() {
   const handleTranslate = useCallback(async () => {
     if (!inputText.trim()) {
       setError("Please enter some text to translate.");
+      return;
+    }
+    if (!apiKey.trim()) {
+      setError("Please set your Gemini API key using the button in the top navigation.");
       return;
     }
 
@@ -281,6 +322,10 @@ export default function TranslatorApp() {
   const handleTranslateAndReview = useCallback(async () => {
     if (!inputText.trim()) {
       setError("Please enter some text to translate.");
+      return;
+    }
+    if (!apiKey.trim()) {
+      setError("Please set your Gemini API key using the button in the top navigation.");
       return;
     }
 
@@ -357,6 +402,10 @@ export default function TranslatorApp() {
                 </option>
               ))}
             </select>
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500 font-display tabular-nums">
+              <span>Input token limit: {(MODEL_LIMITS[selectedModel]?.inputTokens ?? 1_048_576).toLocaleString()}</span>
+              <span>Output token limit: {(MODEL_LIMITS[selectedModel]?.outputTokens ?? activeMaxOutputTokens).toLocaleString()}</span>
+            </div>
           </div>
 
           {/* Language Selection */}
@@ -441,6 +490,16 @@ export default function TranslatorApp() {
           >
             Output
           </button>
+          {!apiKey.trim() && (
+            <span className="ml-auto text-[11px] text-amber-300/90 font-display">
+              Set API key from top nav to start translating
+            </span>
+          )}
+          {totalCost > 0 && (
+            <span className="ml-auto text-[11px] text-cyan-400/80 font-display tabular-nums">
+              Session: ${totalCost.toFixed(6)}
+            </span>
+          )}
         </div>
 
         {activePanel === "input" ? (
@@ -499,6 +558,9 @@ export default function TranslatorApp() {
                     {translatedText.length.toLocaleString()} chars
                     {tokenUsage && (
                       <> | {tokenUsage.outputTokens.toLocaleString()} tokens</>
+                    )}
+                    {translationCost != null && (
+                      <> | ${translationCost.toFixed(6)}</>
                     )}
                   </span>
                   <button

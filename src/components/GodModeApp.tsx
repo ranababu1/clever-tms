@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { getPromptTemplateForLang } from "@/lib/translation-system-prompt";
-import { MODELS, MODEL_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS, LANGUAGE_NAMES } from "@/lib/translation-models";
+import { MODELS, MODEL_LIMITS, MODEL_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS, LANGUAGE_NAMES, MODEL_PRICING } from "@/lib/translation-models";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -17,6 +17,8 @@ const LANGUAGES = [
 ] as const;
 
 const TARGET_LANGUAGES = LANGUAGES.filter((l) => ["de", "tr", "vi"].includes(l.code));
+const API_KEY_STORAGE_KEY = "gemini_translator_api_key";
+const API_KEY_UPDATED_EVENT = "gemini-api-key-updated";
 const REVIEW_START_DELAY_MS = 5000;
 
 const LOADING_MESSAGES = [
@@ -116,6 +118,9 @@ export default function GodModeApp() {
   const [correctedVersion, setCorrectedVersion] = useState<string | null>(null);
   const [reviewHasIssues, setReviewHasIssues] = useState(false);
   const [tokenUsage, setTokenUsage] = useState<{ inputTokens: number; outputTokens: number; totalTokens: number } | null>(null);
+  const [apiKey, setApiKey] = useState("");
+  const [translationCost, setTranslationCost] = useState<number | null>(null);
+  const [totalCost, setTotalCost] = useState(0);
 
   // Advanced controls
   const [creativity, setCreativity] = useState(0.7);
@@ -135,6 +140,27 @@ export default function GodModeApp() {
   useEffect(() => {
     setMaxTokens((prev) => Math.min(prev, activeMaxOutputTokens));
   }, [activeMaxOutputTokens]);
+
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(API_KEY_STORAGE_KEY);
+      if (stored) setApiKey(stored);
+    } catch {
+      /* sessionStorage not available */
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      try {
+        setApiKey(sessionStorage.getItem(API_KEY_STORAGE_KEY) || "");
+      } catch {
+        /* sessionStorage not available */
+      }
+    };
+    window.addEventListener(API_KEY_UPDATED_EVENT, handler);
+    return () => window.removeEventListener(API_KEY_UPDATED_EVENT, handler);
+  }, []);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -191,6 +217,7 @@ export default function GodModeApp() {
     setTranslatedText("");
     setError(null);
     setTokenUsage(null);
+    setTranslationCost(null);
     setReviewSummary([]);
     setCorrectedVersion(null);
     setReviewHasIssues(false);
@@ -208,6 +235,7 @@ export default function GodModeApp() {
         sourceLang,
         targetLang,
         model: selectedModel,
+        apiKey,
         systemPrompt,
         temperature: creativity,
         topP,
@@ -225,6 +253,14 @@ export default function GodModeApp() {
     setActivePanel("output");
     if (data.usage) {
       setTokenUsage(data.usage);
+      const pricing = MODEL_PRICING[selectedModel];
+      if (pricing) {
+        const cost =
+          (data.usage.inputTokens / 1_000_000) * pricing.inputPer1M +
+          (data.usage.outputTokens / 1_000_000) * pricing.outputPer1M;
+        setTranslationCost(cost);
+        setTotalCost((prev) => prev + cost);
+      }
       console.group("%c[God Mode] Token Usage", "color:#f59e0b;font-weight:bold");
       console.log("Input tokens: ", data.usage.inputTokens);
       console.log("Output tokens:", data.usage.outputTokens);
@@ -243,6 +279,7 @@ export default function GodModeApp() {
         translatedText: draft,
         targetLang: LANGUAGE_NAMES[targetLang] || targetLang,
         model: selectedModel,
+        apiKey,
       }),
     });
     const data = await response.json();
@@ -254,6 +291,7 @@ export default function GodModeApp() {
 
   const handleTranslate = useCallback(async () => {
     if (!inputText.trim()) { setError("Please enter some text to translate."); return; }
+    if (!apiKey.trim()) { setError("Please set your Gemini API key using the button in the top navigation."); return; }
     setIsLoading(true); setError(null); setTranslatedText(""); setReviewSummary([]);
     setCorrectedVersion(null); setReviewHasIssues(false); setActivePanel("output");
     try { await requestTranslation(); }
@@ -263,6 +301,7 @@ export default function GodModeApp() {
 
   const handleTranslateAndReview = useCallback(async () => {
     if (!inputText.trim()) { setError("Please enter some text to translate."); return; }
+    if (!apiKey.trim()) { setError("Please set your Gemini API key using the button in the top navigation."); return; }
     setIsLoading(true); setIsReviewLoading(false); setIsReviewPending(false);
     setError(null); setTranslatedText(""); setReviewSummary([]);
     setCorrectedVersion(null); setReviewHasIssues(false); setActivePanel("output");
@@ -303,6 +342,10 @@ export default function GodModeApp() {
               style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}>
               {MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500 font-display tabular-nums">
+              <span>Input token limit: {(MODEL_LIMITS[selectedModel]?.inputTokens ?? 1_048_576).toLocaleString()}</span>
+              <span>Output token limit: {(MODEL_LIMITS[selectedModel]?.outputTokens ?? activeMaxOutputTokens).toLocaleString()}</span>
+            </div>
           </div>
           <div className="flex items-end gap-2 min-w-0">
             <div className="flex-1">
@@ -502,6 +545,12 @@ export default function GodModeApp() {
         <div className="flex items-center gap-2 mb-4">
           <button type="button" onClick={() => setActivePanel("input")} className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${activePanel === "input" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"}`}>Input</button>
           <button type="button" onClick={() => setActivePanel("output")} className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${activePanel === "output" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"}`}>Output</button>
+            {!apiKey.trim() && (
+              <span className="ml-auto text-[11px] text-amber-300/90 font-display">Set API key from top nav to start</span>
+            )}
+            {totalCost > 0 && (
+              <span className="ml-auto text-[11px] text-cyan-400/80 font-display tabular-nums">Session: ${totalCost.toFixed(6)}</span>
+            )}
         </div>
 
         {activePanel === "input" ? (
@@ -529,6 +578,7 @@ export default function GodModeApp() {
                   {translatedText && !isLoading && <button onClick={resetTranslationState} className="text-xs text-gray-400 hover:text-cyan-400 transition-colors font-display" type="button">New Translation</button>}
                   <span className="text-[10px] text-gray-500 font-display tabular-nums">
                     {translatedText.length.toLocaleString()} chars{tokenUsage && <> | {tokenUsage.outputTokens.toLocaleString()} tokens</>}
+                                      {translationCost != null && <> | ${translationCost.toFixed(6)}</>}
                   </span>
                   <button onClick={handleCopy} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-cyan-400 transition-colors font-display" type="button">
                     {copied ? <><IconCheck /><span>Copied!</span></> : <><IconCopy /><span>Copy</span></>}

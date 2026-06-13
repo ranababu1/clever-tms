@@ -1,6 +1,11 @@
 import type { Config } from "tailwindcss";
 
-const config: Config = {
+type DaisyUiConfig = {
+  themes?: string[];
+  darkTheme?: string;
+};
+
+const config: Config & { daisyui?: DaisyUiConfig } = {
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",

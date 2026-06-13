@@ -1,17 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 
-let _client: GoogleGenAI | null = null;
-
-export function getGeminiClient(): GoogleGenAI {
-  if (!_client) {
-    if (!process.env.GOOGLE_CLOUD_PROJECT) {
-      throw new Error("GOOGLE_CLOUD_PROJECT environment variable is not set.");
-    }
-    _client = new GoogleGenAI({
-      vertexai: true,
-      project: process.env.GOOGLE_CLOUD_PROJECT,
-      location: process.env.GOOGLE_CLOUD_LOCATION ?? "us-central1",
-    });
+export function getGeminiClient(apiKey: string): GoogleGenAI {
+  if (!apiKey || apiKey.trim().length < 10) {
+    throw new Error("Invalid Gemini API key.");
   }
-  return _client;
+  return new GoogleGenAI({ apiKey: apiKey.trim() });
 }

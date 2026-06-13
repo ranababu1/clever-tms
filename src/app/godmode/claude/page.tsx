@@ -51,7 +51,7 @@ export default function GodModeClaudePage() {
                 </span>
               </div>
               <p className="text-[11px] text-gray-400 tracking-wide uppercase font-display">
-                Unrestricted · Full Control
+                Full Control Unleashed
               </p>
             </div>
             <Link
