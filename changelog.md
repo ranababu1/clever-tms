@@ -1,9 +1,10 @@
 # Changelog
 
-Incremental history of this app. Newest first. Entries before "Unreleased" are reconstructed
-from `git log`; commit hashes are from `main`.
+Incremental history of this app. Newest first, one entry per commit, headed by that commit's
+short hash on `main`. Entries older than the first AI-assisted one are reconstructed from
+`git log` after the fact.
 
-## Unreleased (working tree, not yet committed)
+## 163b9ba — Model, language, and pricing updates
 
 Gemini switched to Google's "-latest" aliases; language list swap (Greek/Japanese in for
 Hindi/Bengali, and now on both dropdowns, not just "From"); old app name purged from
