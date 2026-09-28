@@ -113,7 +113,7 @@ export default function GodModeApp() {
   // Translation state
   const [inputText, setInputText] = useState("");
   const [translatedText, setTranslatedText] = useState("");
-  const [selectedModel, setSelectedModel] = useState<string>("gemini-2.5-flash");
+  const [selectedModel, setSelectedModel] = useState<string>("gemini-flash-latest");
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("tr");
   const [isLoading, setIsLoading] = useState(false);
@@ -141,9 +141,8 @@ export default function GodModeApp() {
   const [presencePenalty, setPresencePenalty] = useState(0);
   const [frequencyPenalty, setFrequencyPenalty] = useState(0);
   const [seed, setSeed] = useState<string>("");
-  const [stopSequences, setStopSequences] = useState<string[]>([]);
-  const [stopInput, setStopInput] = useState("");
-  const [systemPrompt, setSystemPrompt] = useState(() => getPromptTemplateForLang("de"));
+  const [thinkingLevel, setThinkingLevel] = useState<"MINIMAL" | "LOW" | "MEDIUM" | "HIGH">("HIGH");
+  const [systemPrompt, setSystemPrompt] = useState(() => getPromptTemplateForLang("tr"));
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -222,17 +221,6 @@ export default function GodModeApp() {
     setTimeout(() => setCopied(false), 2000);
   }, [translatedText]);
 
-  const handleAddStopSequence = useCallback(() => {
-    const val = stopInput.trim();
-    if (!val || stopSequences.length >= 4 || stopSequences.includes(val)) return;
-    setStopSequences((prev) => [...prev, val]);
-    setStopInput("");
-  }, [stopInput, stopSequences]);
-
-  const handleRemoveStopSequence = useCallback((idx: number) => {
-    setStopSequences((prev) => prev.filter((_, i) => i !== idx));
-  }, []);
-
   const resetTranslationState = useCallback(() => {
     setInputText("");
     setTranslatedText("");
@@ -265,7 +253,7 @@ export default function GodModeApp() {
         presencePenalty,
         frequencyPenalty,
         seed: seed.trim() !== "" ? Number(seed) : undefined,
-        stopSequences,
+        thinkingLevel,
       }),
     });
     const data = await response.json();
@@ -289,7 +277,7 @@ export default function GodModeApp() {
       console.groupEnd();
     }
     return data.translatedText as string;
-  }, [inputText, selectedModel, sourceLang, targetLang, systemPrompt, creativity, topP, topK, maxTokens, presencePenalty, frequencyPenalty, seed, stopSequences, activeModelInfo]);
+  }, [inputText, selectedModel, sourceLang, targetLang, systemPrompt, creativity, topP, topK, maxTokens, presencePenalty, frequencyPenalty, seed, thinkingLevel, activeModelInfo]);
 
   const requestReview = useCallback(async (draft: string) => {
     const response = await fetch("/api/review-translation", {
@@ -407,7 +395,7 @@ export default function GodModeApp() {
             <span className="text-[10px] font-semibold text-amber-400/80 uppercase tracking-wider font-display">Prompt Lab</span>
           </div>
           <button type="button"
-            onClick={() => { setCreativity(0.7); setTopP(0.95); setTopK(40); setMaxTokens(activeMaxOutputTokens); setPresencePenalty(0); setFrequencyPenalty(0); setSeed(""); setStopSequences([]); setSystemPrompt(getPromptTemplateForLang(targetLang)); }}
+            onClick={() => { setCreativity(0.7); setTopP(0.95); setTopK(40); setMaxTokens(activeMaxOutputTokens); setPresencePenalty(0); setFrequencyPenalty(0); setSeed(""); setThinkingLevel("HIGH"); setSystemPrompt(getPromptTemplateForLang(targetLang)); }}
             className="text-[11px] text-gray-500 hover:text-amber-400 transition-colors font-display underline underline-offset-2">
             Reset all
           </button>
@@ -472,8 +460,8 @@ export default function GodModeApp() {
           </div>
         </div>
 
-        {/* ── Presence Penalty · Frequency Penalty · Seed ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
+        {/* ── Presence Penalty · Frequency Penalty · Seed · Thinking Level ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
           <div>
             <div className="flex items-center justify-between mb-2.5">
               <label className="text-xs font-semibold text-gray-200 font-display">Presence Penalty</label>
@@ -514,37 +502,19 @@ export default function GodModeApp() {
               className="w-full bg-[#12141c] border border-[#2a2d3a] rounded-lg px-3 py-2.5 text-sm text-gray-200 font-display tabular-nums placeholder:text-gray-600 transition-all" />
             <p className="text-[11px] text-gray-600 font-display mt-2">Fixed integer for reproducible output. Empty = random every run.</p>
           </div>
-        </div>
 
-        {/* ── Stop Sequences ── */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2.5">
-            <label className="text-xs font-semibold text-gray-200 font-display">Stop Sequences</label>
-            <span className="text-[10px] text-gray-600 font-display">max 4</span>
+          <div>
+            <label className="text-xs font-semibold text-gray-200 font-display block mb-2.5">Thinking Level</label>
+            <select value={thinkingLevel} onChange={(e) => setThinkingLevel(e.target.value as typeof thinkingLevel)}
+              className="w-full bg-[#12141c] border border-[#2a2d3a] rounded-lg px-3 py-2.5 text-sm text-gray-200 font-display cursor-pointer transition-all appearance-none"
+              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}>
+              <option value="MINIMAL">Minimal</option>
+              <option value="LOW">Low</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HIGH">High</option>
+            </select>
+            <p className="text-[11px] text-gray-600 font-display mt-2">How much the model reasons before answering. Higher = better quality, slower and pricier.</p>
           </div>
-          <div className="flex gap-2 mb-2">
-            <input type="text" value={stopInput} onChange={(e) => setStopInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddStopSequence(); } }}
-              placeholder='e.g.  ###  or  </div>'
-              className="flex-1 bg-[#12141c] border border-[#2a2d3a] rounded-lg px-3 py-2 text-sm text-gray-200 font-mono placeholder:text-gray-600 placeholder:font-sans transition-all"
-              spellCheck={false} />
-            <button type="button" onClick={handleAddStopSequence}
-              disabled={stopSequences.length >= 4 || !stopInput.trim()}
-              className="px-4 py-2 rounded-lg bg-[#12141c] border border-[#2a2d3a] text-xs text-gray-300 hover:text-cyan-400 hover:border-cyan-400/30 disabled:opacity-40 disabled:cursor-not-allowed font-display transition-all">
-              Add
-            </button>
-          </div>
-          {stopSequences.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {stopSequences.map((seq, i) => (
-                <span key={i} className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#12141c] border border-[#2a2d3a] text-xs text-gray-300 font-mono">
-                  {JSON.stringify(seq)}
-                  <button type="button" onClick={() => handleRemoveStopSequence(i)} className="text-gray-600 hover:text-red-400 transition-colors ml-0.5">×</button>
-                </span>
-              ))}
-            </div>
-          )}
-          <p className="text-[11px] text-gray-600 font-display">Model halts immediately on any of these strings. Useful for enforcing output boundaries.</p>
         </div>
 
         {/* ── System Prompt ── */}

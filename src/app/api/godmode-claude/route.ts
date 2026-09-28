@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { LANGUAGE_NAMES } from "@/lib/translation-models";
 import {
   CLAUDE_GODMODE_MAX_OUTPUT_CAP,
+  EFFORT_LEVELS,
   isAllowedClaudeModel,
+  supportsEffort,
   supportsSamplingParams,
 } from "@/lib/claude-translation-models";
+
+const ALLOWED_EFFORT_LEVELS = new Set<string>(EFFORT_LEVELS);
 
 const ANTHROPIC_VERSION = "2023-06-01";
 
@@ -28,7 +32,7 @@ interface GodModeClaudeRequest {
   temperature: number;
   topK: number;
   maxOutputTokens: number;
-  stopSequences: string[];
+  effort?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -44,7 +48,7 @@ export async function POST(request: NextRequest) {
       temperature,
       topK,
       maxOutputTokens,
-      stopSequences,
+      effort,
     } = body;
 
     if (!text?.trim()) {
@@ -86,8 +90,6 @@ export async function POST(request: NextRequest) {
       Math.min(CLAUDE_GODMODE_MAX_OUTPUT_CAP, Math.round(maxOutputTokens ?? 8192))
     );
 
-    const filteredStop = (stopSequences || []).filter((s) => s.trim()).slice(0, 4);
-
     const payload: Record<string, unknown> = {
       model,
       max_tokens: maxTokens,
@@ -102,8 +104,10 @@ export async function POST(request: NextRequest) {
       payload.top_k = tk;
     }
 
-    if (filteredStop.length > 0) {
-      payload.stop_sequences = filteredStop;
+    // Effort is the modern replacement lever on Opus 5 / Opus 5.5 / Sonnet 5 — Haiku 4.5
+    // rejects it outright (400), so only send it where supported.
+    if (effort && ALLOWED_EFFORT_LEVELS.has(effort) && supportsEffort(model)) {
+      payload.output_config = { effort };
     }
 
     const anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {

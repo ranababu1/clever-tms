@@ -65,3 +65,13 @@ export function isAllowedClaudeModel(model: string): boolean {
 export function supportsSamplingParams(model: string): boolean {
   return !/^claude-(opus|sonnet)-5/i.test(model);
 }
+
+export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
+export type EffortLevel = (typeof EFFORT_LEVELS)[number];
+
+// The flip side of supportsSamplingParams: Opus 5 / Opus 5.5 / Sonnet 5 support the modern
+// `output_config.effort` lever (their replacement for temperature/top_k); Haiku 4.5 rejects it
+// outright (400). Check this before putting `output_config.effort` on an Anthropic request.
+export function supportsEffort(model: string): boolean {
+  return /^claude-(opus|sonnet)-5/i.test(model);
+}

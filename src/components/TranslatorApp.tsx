@@ -97,7 +97,7 @@ export default function TranslatorApp() {
   // State
   const [inputText, setInputText] = useState("");
   const [translatedText, setTranslatedText] = useState("");
-  const [selectedModel, setSelectedModel] = useState<string>("gemini-3.1-flash-lite");
+  const [selectedModel, setSelectedModel] = useState<string>("gemini-flash-lite-latest");
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("tr");
   const [isLoading, setIsLoading] = useState(false);

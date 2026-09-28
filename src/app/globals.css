@@ -226,6 +226,47 @@ select option {
   line-height: var(--token-meta-line-height);
 }
 
+@keyframes godmodeHeartbeat {
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  15% {
+    transform: scale(1.1);
+    opacity: 0.85;
+  }
+
+  30% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  45% {
+    transform: scale(1.06);
+    opacity: 0.9;
+  }
+
+  60% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.godmode-heartbeat {
+  display: inline-block;
+  transform-origin: center;
+  animation: godmodeHeartbeat 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .godmode-heartbeat {
+    animation: none;
+  }
+}
+
 @keyframes floatY {
 
   0%,

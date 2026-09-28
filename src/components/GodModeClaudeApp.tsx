@@ -4,6 +4,9 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import {
   CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS,
   CLAUDE_GODMODE_MAX_OUTPUT_CAP,
+  EFFORT_LEVELS,
+  type EffortLevel,
+  supportsEffort,
   supportsSamplingParams,
 } from "@/lib/claude-translation-models";
 import { useClaudeModels } from "@/lib/useClaudeModels";
@@ -119,15 +122,15 @@ export default function GodModeClaudeApp() {
   const [creativity, setCreativity] = useState(0.8);
   const [topK, setTopK] = useState(100);
   const [maxTokens, setMaxTokens] = useState(CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS);
-  const [stopSequences, setStopSequences] = useState<string[]>([]);
-  const [stopInput, setStopInput] = useState("");
-  const [systemPrompt, setSystemPrompt] = useState(() => getPromptTemplateForLang("de"));
+  const [effort, setEffort] = useState<EffortLevel>("high");
+  const [systemPrompt, setSystemPrompt] = useState(() => getPromptTemplateForLang("tr"));
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { models, fetchedAt } = useClaudeModels(apiKey);
   const activeModelInfo = models.find((m) => m.id === selectedModel);
   const samplingSupported = supportsSamplingParams(selectedModel);
+  const effortSupported = supportsEffort(selectedModel);
   const modelCeiling = Math.min(
     activeModelInfo?.outputTokenLimit ?? CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS,
     CLAUDE_GODMODE_MAX_OUTPUT_CAP
@@ -210,17 +213,6 @@ export default function GodModeClaudeApp() {
     setTimeout(() => setCopied(false), 2000);
   }, [translatedText]);
 
-  const handleAddStopSequence = useCallback(() => {
-    const val = stopInput.trim();
-    if (!val || stopSequences.length >= 4 || stopSequences.includes(val)) return;
-    setStopSequences((prev) => [...prev, val]);
-    setStopInput("");
-  }, [stopInput, stopSequences]);
-
-  const handleRemoveStopSequence = useCallback((idx: number) => {
-    setStopSequences((prev) => prev.filter((_, i) => i !== idx));
-  }, []);
-
   const resetTranslationState = useCallback(() => {
     setInputText("");
     setTranslatedText("");
@@ -244,7 +236,7 @@ export default function GodModeClaudeApp() {
         temperature: creativity,
         topK,
         maxOutputTokens: maxTokens,
-        stopSequences,
+        effort,
       }),
     });
     const data = await response.json();
@@ -278,7 +270,7 @@ export default function GodModeClaudeApp() {
     creativity,
     topK,
     maxTokens,
-    stopSequences,
+    effort,
     activeModelInfo,
   ]);
 
@@ -421,7 +413,7 @@ export default function GodModeClaudeApp() {
               setCreativity(0.7);
               setTopK(40);
               setMaxTokens(Math.min(CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS, modelCeiling));
-              setStopSequences([]);
+              setEffort("high");
               setSystemPrompt(getPromptTemplateForLang(targetLang));
             }}
             className="text-[11px] text-gray-500 hover:text-amber-400 transition-colors font-display underline underline-offset-2"
@@ -502,53 +494,29 @@ export default function GodModeClaudeApp() {
         </div>
 
         <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2.5">
-            <label className="text-xs font-semibold text-gray-200 font-display">Stop Sequences</label>
-            <span className="text-[10px] text-gray-600 font-display">max 4</span>
-          </div>
-          <div className="flex gap-2 mb-2">
-            <input
-              type="text"
-              value={stopInput}
-              onChange={(e) => setStopInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleAddStopSequence();
-                }
-              }}
-              placeholder='e.g.  ###  or  </div>'
-              className="flex-1 bg-[#12141c] border border-[#2a2d3a] rounded-lg px-3 py-2 text-sm text-gray-200 font-mono placeholder:text-gray-600 placeholder:font-sans transition-all"
-              spellCheck={false}
-            />
-            <button
-              type="button"
-              onClick={handleAddStopSequence}
-              disabled={stopSequences.length >= 4 || !stopInput.trim()}
-              className="px-4 py-2 rounded-lg bg-[#12141c] border border-[#2a2d3a] text-xs text-gray-300 hover:text-amber-400 hover:border-amber-400/30 disabled:opacity-40 disabled:cursor-not-allowed font-display transition-all"
-            >
-              Add
-            </button>
-          </div>
-          {stopSequences.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {stopSequences.map((seq, i) => (
-                <span
-                  key={i}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#12141c] border border-[#2a2d3a] text-xs text-gray-300 font-mono"
-                >
-                  {JSON.stringify(seq)}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveStopSequence(i)}
-                    className="text-gray-600 hover:text-red-400 transition-colors ml-0.5"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
+          <label className="text-xs font-semibold text-gray-200 font-display block mb-2.5">Effort</label>
+          <select
+            value={effort}
+            disabled={!effortSupported}
+            onChange={(e) => setEffort(e.target.value as EffortLevel)}
+            className="w-full bg-[#12141c] border border-[#2a2d3a] rounded-lg px-3 py-2.5 text-sm text-gray-200 font-display cursor-pointer transition-all appearance-none disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+              backgroundRepeat: "no-repeat",
+              backgroundPosition: "right 12px center",
+            }}
+          >
+            {EFFORT_LEVELS.map((level) => (
+              <option key={level} value={level}>
+                {level.charAt(0).toUpperCase() + level.slice(1)}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-gray-600 font-display mt-2">
+            {effortSupported
+              ? "How much the model reasons before answering. Higher = better quality, slower and pricier."
+              : "This model doesn't accept an effort setting — disabled and won't be sent."}
+          </p>
         </div>
 
         <div>

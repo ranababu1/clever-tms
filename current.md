@@ -37,9 +37,10 @@ pages use `claude_translator_api_key` / `claude-api-key-updated`.
 - `POST /api/translate` — Gemini, simple mode. Builds a per-target-language system prompt
   (see below), calls `ai.models.generateContent`, extracts the `<final>…</final>` block from
   the two-phase output, returns `{ translatedText, usage }`.
-- `POST /api/godmode` — Gemini, advanced mode. Takes a user-editable system prompt plus full
+- `POST /api/godmode` — Gemini, advanced mode. Takes a user-editable system prompt plus
   generation params (temperature, topP, topK, maxOutputTokens, presence/frequency penalty,
-  seed, stop sequences), appends non-editable hardcoded code-preservation rules, calls Gemini.
+  seed, thinkingLevel), appends non-editable hardcoded code-preservation rules, calls Gemini.
+  No stop sequences — removed from the UI and the route (see "God Mode parameters" below).
 - `POST /api/review-translation` — Gemini only. Second-pass QA: given the original text and
   a draft translation, asks the model to return `{ hasIssues, issues[], correctedTranslation }`
   as JSON. Used by the "Translate and Review" button in both Gemini apps (5s delay before the
@@ -47,10 +48,33 @@ pages use `claude_translator_api_key` / `claude-api-key-updated`.
 - `POST /api/translate-claude` — Claude, simple mode. Calls Anthropic's Messages API directly
   via `fetch` (no SDK). Same `<final>` extraction convention as Gemini.
 - `POST /api/godmode-claude` — Claude, advanced mode. Same shape as `/api/godmode` but for
-  Claude's parameter set (temperature, top_k, max_tokens, stop_sequences — Claude 4.x rejects
-  `top_p` when `temperature` is set, so only temperature + top_k are exposed).
-- `POST /api/models` — **New.** Returns the live Gemini model catalog (see "Model system"
+  Claude's parameter set (temperature, top_k, max_tokens, effort). No stop sequences.
+- `POST /api/models` — Returns the live Gemini model catalog (see "Model system"
   below). Takes `{ apiKey }`, returns `{ models, fetchedAt, fallback }`.
+- `POST /api/claude-models` — Same shape, for the Claude model catalog.
+
+### God Mode parameters (as of this writing)
+
+**Gemini (`/api/godmode`):** temperature, topP, topK, maxOutputTokens, presencePenalty,
+frequencyPenalty, seed, and **Thinking Level** (`thinkingLevel`: MINIMAL/LOW/MEDIUM/HIGH,
+maps to `generationConfig.thinkingConfig.thinkingLevel` in the `@google/genai` SDK — Gemini
+3.x models think by default, this controls how much). No stop sequences (removed on request —
+was UI clutter no one used).
+
+**Claude (`/api/godmode-claude`):** temperature, top_k, max_tokens, and **Effort**
+(`effort`: low/medium/high/xhigh/max, maps to `output_config.effort` on the raw Anthropic
+request). Both temperature/top_k and effort are **model-gated, not both always sent**:
+- `supportsSamplingParams(model)` (in `claude-translation-models.ts`) — true for Haiku, false
+  for the Opus-5x/Sonnet-5x family. Gates temperature/top_k.
+- `supportsEffort(model)` — the inverse: true for Opus-5x/Sonnet-5x, false for Haiku.
+  Gates `output_config.effort`.
+
+These two are currently exact opposites for the 3 models we fetch (Opus 5.5 gets effort not
+sampling, Haiku 4.5 gets sampling not effort, Sonnet 5 gets effort not sampling) but are
+written as **independent checks**, not derived from each other — a future model could support
+both, neither, or a different split. `GodModeClaudeApp` disables+greys the irrelevant
+control(s) with an inline note rather than hiding them, so the UI doesn't silently drop a
+setting the user just changed. No stop sequences (removed on request).
 
 All routes validate `apiKey.trim().length >= 10` and return 400 on missing required fields.
 None of the routes persist the API key.
@@ -146,23 +170,29 @@ Vietnamese) and use it for **both** the "From" and "To" dropdowns
 (`TARGET_LANGUAGES = LANGUAGES.filter(l => l.code !== "auto")`) — "To" is not restricted to a
 subset.
 
-Only `de`/`tr`/`vi` have a **dedicated system prompt file**, though:
+Only `de`/`tr`/`vi` have a **dedicated system prompt file**, and the two consumers in
+`src/lib/translation-system-prompt.ts` handle that gap differently on purpose:
 
-- `src/lib/translation-system-prompt-de.ts`
-- `src/lib/translation-system-prompt-tr.ts`
-- `src/lib/translation-system-prompt-vi.ts`
-- `src/lib/translation-system-prompt.ts` — dispatcher: `buildTranslationSystemPrompt(sourceLang, targetLang)`
-  picks the right builder by `targetLang`, **falling back to the German builder** for any
-  other target (just with `{targetLang}` interpolated to the new language's name).
-  `getPromptTemplateForLang(targetLang)` (used by God Mode's editable textarea and its
-  "Reset" button) has the same fallback.
+- `src/lib/translation-system-prompt-de.ts` / `-tr.ts` / `-vi.ts` — the 3 hand-written templates.
+- `buildTranslationSystemPrompt(sourceLang, targetLang)` — used server-side by the **simple**
+  `/api/translate` flow, which has no UI for the user to see or edit the prompt. This one
+  **must always produce a working instruction**, so it falls back to the German builder for
+  any other target (just with `{targetLang}` interpolated to the new language's name) rather
+  than fail or emit a placeholder. Translating into Arabic/English/French/Greek/Japanese/
+  Mandarin/Portuguese/Spanish via simple mode works, quietly reusing German-tuned phrasing.
+  Known, accepted trade-off — not a bug.
+- `getPromptTemplateForLang(targetLang)` — used **client-side only**, to seed God Mode's
+  editable System Prompt textarea (initial value + "Reset" button) in both Gemini and Claude
+  God Mode apps. Unlike the builder above, this one does **not** silently substitute the
+  German template for unsupported targets — it returns a placeholder string telling the user
+  there's no predefined prompt for that language and that they can write their own. This is
+  safe here specifically because the textarea's content is what actually gets sent as the
+  system prompt in God Mode requests — the placeholder is meant to be overwritten, not used
+  as-is. Don't reuse `getPromptTemplateForLang`'s output as a real instruction anywhere else.
 
-So translating into Arabic/English/French/Greek/Japanese/Mandarin/Portuguese/Spanish works,
-but silently reuses the German-tuned prompt template (word choice/register tuned for German,
-just with the target language name swapped in) rather than a template written for that
-language. This is a known, accepted quality trade-off, not a bug — if you add a dedicated
-prompt file for another language, wire it into `PROMPT_BUILDERS` in
-`translation-system-prompt.ts`.
+If you add a dedicated prompt file for another language, wire it into **both**
+`PROMPT_BUILDERS` and `PROMPT_TEMPLATES` in `translation-system-prompt.ts` — missing one means
+simple mode and God Mode disagree about whether that language has a real prompt.
 
 ## Branding
 
@@ -181,6 +211,11 @@ Reads the parent's bounding rect for sizing (mount it inside a `position: relati
 no-ops under `prefers-reduced-motion: reduce`. Not used anywhere else in the app — the
 `/translate*`/`/godmode*` pages are functional surfaces where this kind of motion would be a
 distraction, not a translate-app-wide chrome element.
+
+The "God Mode" badge text (both `godmode/page.tsx` and `godmode/claude/page.tsx` headers) has
+a subtle `.godmode-heartbeat` pulse (`globals.css`: scale/opacity keyframes, ~2.4s loop,
+no-ops under `prefers-reduced-motion: reduce`) — purely decorative, not tied to any loading
+state.
 
 ## UI conventions worth knowing before editing
 

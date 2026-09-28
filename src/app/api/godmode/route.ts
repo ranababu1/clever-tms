@@ -17,8 +17,10 @@ interface GodModeRequest {
   presencePenalty: number;
   frequencyPenalty: number;
   seed?: number;
-  stopSequences: string[];
+  thinkingLevel?: string;
 }
+
+const ALLOWED_THINKING_LEVELS = new Set(["MINIMAL", "LOW", "MEDIUM", "HIGH"]);
 
 // Always appended after the user's system prompt — not editable in the UI.
 const HARDCODED_RULES = `
@@ -37,7 +39,7 @@ export async function POST(request: NextRequest) {
     const {
       text, sourceLang, targetLang, model,
       apiKey, systemPrompt, temperature, topP, topK, maxOutputTokens,
-      presencePenalty, frequencyPenalty, seed, stopSequences,
+      presencePenalty, frequencyPenalty, seed, thinkingLevel,
     } = body;
 
     if (!text?.trim()) return NextResponse.json({ error: "Text to translate is required." }, { status: 400 });
@@ -78,8 +80,9 @@ export async function POST(request: NextRequest) {
       generationConfig.seed = Math.round(seed);
     }
 
-    const filteredStop = (stopSequences || []).filter((s) => s.trim());
-    if (filteredStop.length > 0) generationConfig.stopSequences = filteredStop;
+    if (thinkingLevel && ALLOWED_THINKING_LEVELS.has(thinkingLevel)) {
+      generationConfig.thinkingConfig = { thinkingLevel };
+    }
 
     const ai = getGeminiClient(apiKey);
     const response = await ai.models.generateContent({
