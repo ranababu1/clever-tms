@@ -4,6 +4,39 @@ Incremental history of this app. Newest first, one entry per commit, headed by t
 short hash on `main`. Entries older than the first AI-assisted one are reconstructed from
 `git log` after the fact.
 
+## 6ac90cc — God Mode parameter overhaul
+
+- **Gemini God Mode:** removed Stop Sequences (label, input, add/remove UI, and the
+  `stopSequences` field end-to-end — client, `/api/godmode`, and the `GenerateContentConfig`
+  payload). Added **Thinking Level** (Minimal/Low/Medium/High), mapped to
+  `generationConfig.thinkingConfig.thinkingLevel` in the `@google/genai` SDK — Gemini 3.x
+  models think by default, this exposes how much. No other Gemini generation params were
+  deprecated as of the current `@google/genai` SDK types, so temperature/topP/topK/
+  maxOutputTokens/presence+frequencyPenalty/seed are unchanged.
+- **Claude God Mode:** removed Stop Sequences the same way. Added **Effort**
+  (low/medium/high/xhigh/max → `output_config.effort` on the raw Anthropic request), gated by
+  a new `supportsEffort(model)` — true for Opus-5x/Sonnet-5x, false for Haiku (which rejects
+  `effort` with a 400). This is the *inverse* of the existing `supportsSamplingParams(model)`
+  gate for temperature/top_k added previously, written as an independent check rather than
+  derived from it, since a future model could support both/neither. The UI disables+greys
+  whichever control(s) don't apply to the selected model with an inline note, rather than
+  hiding them.
+- **System prompt per language:** `getPromptTemplateForLang(targetLang)` (used only to seed
+  God Mode's editable System Prompt textarea — not the simple-mode translation path) no longer
+  silently substitutes the German-tuned template for targets without a dedicated prompt file.
+  It now returns "No predefined prompt for `<language>` yet. You can write your own here…".
+  `buildTranslationSystemPrompt` (the simple `/api/translate` server-side builder, which has
+  no UI and must always produce a working instruction) keeps its German fallback unchanged.
+- **Bug fixes found while auditing:** both God Mode apps' initial System Prompt state called
+  `getPromptTemplateForLang("de")` regardless of the actual default target language ("tr") —
+  fixed to `getPromptTemplateForLang("tr")`. `GodModeApp`'s default `selectedModel` was the
+  retired `gemini-2.5-flash` (not in the current alias-based fallback list, so it would've
+  snapped to the Pro alias on first render); `TranslatorApp`'s default was the retired
+  `gemini-3.1-flash-lite` for the same reason. Both fixed to the matching `-latest` alias.
+- **Heartbeat animation:** the "God Mode" badge text (both `/godmode` and `/godmode/claude`
+  headers) now has a subtle pulse — `.godmode-heartbeat` in `globals.css`, ~2.4s scale/opacity
+  loop, respects `prefers-reduced-motion: reduce`.
+
 ## 163b9ba — Model, language, and pricing updates
 
 Gemini switched to Google's "-latest" aliases; language list swap (Greek/Japanese in for
