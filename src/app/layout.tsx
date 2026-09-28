@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Clever TMS — Translate Anything",
+  title: "Smart TMS — Translate Anything",
   description: "AI-powered translation tool using Google Gemini. Translates anything and everything.",
 };
 

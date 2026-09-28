@@ -3,6 +3,7 @@ import { LANGUAGE_NAMES } from "@/lib/translation-models";
 import {
   CLAUDE_GODMODE_MAX_OUTPUT_CAP,
   isAllowedClaudeModel,
+  supportsSamplingParams,
 } from "@/lib/claude-translation-models";
 
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -92,9 +93,14 @@ export async function POST(request: NextRequest) {
       max_tokens: maxTokens,
       system: finalSystemPrompt,
       messages: [{ role: "user", content: text }],
-      temperature: temp,
-      top_k: tk,
     };
+
+    // Sonnet 5 / Opus 5 / Opus 5.5 reject temperature/top_p/top_k outright (400) — only
+    // include them for models that still accept sampling controls (e.g. Haiku 4.5).
+    if (supportsSamplingParams(model)) {
+      payload.temperature = temp;
+      payload.top_k = tk;
+    }
 
     if (filteredStop.length > 0) {
       payload.stop_sequences = filteredStop;

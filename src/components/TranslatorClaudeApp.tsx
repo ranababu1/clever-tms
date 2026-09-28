@@ -1,24 +1,29 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import {
-  CLAUDE_MODELS,
-  CLAUDE_MODEL_MAX_OUTPUT_TOKENS,
-  CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS,
-  CLAUDE_MODEL_PRICING,
-} from "@/lib/claude-translation-models";
+import { CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS } from "@/lib/claude-translation-models";
+import { useClaudeModels } from "@/lib/useClaudeModels";
+import ModelInfoModal from "@/components/ModelInfoModal";
 
+// Language options — alphabetical, with auto-detect pinned first. Used for both "From" and
+// "To"; only de/tr/vi have a dedicated system prompt (see translation-system-prompt.ts), other
+// targets fall back to the German prompt template with the target language name substituted.
 const LANGUAGES = [
   { code: "auto", label: "Auto-detect" },
+  { code: "ar", label: "Arabic" },
   { code: "en", label: "English" },
-  { code: "es", label: "Spanish" },
-  { code: "pt", label: "Portuguese" },
-  { code: "tr", label: "Turkish" },
+  { code: "fr", label: "French" },
   { code: "de", label: "German" },
+  { code: "el", label: "Greek" },
+  { code: "ja", label: "Japanese" },
+  { code: "zh", label: "Mandarin Chinese" },
+  { code: "pt", label: "Portuguese" },
+  { code: "es", label: "Spanish" },
+  { code: "tr", label: "Turkish" },
   { code: "vi", label: "Vietnamese" },
 ] as const;
 
-const TARGET_LANGUAGES = LANGUAGES.filter((l) => ["de", "tr", "vi"].includes(l.code));
+const TARGET_LANGUAGES = LANGUAGES.filter((l) => l.code !== "auto");
 
 const API_KEY_STORAGE_KEY = "claude_translator_api_key";
 const TARGET_LANG_STORAGE_KEY = "claude_translator_target_lang";
@@ -84,7 +89,7 @@ function IconClear() {
 export default function TranslatorClaudeApp() {
   const [inputText, setInputText] = useState("");
   const [translatedText, setTranslatedText] = useState("");
-  const [selectedModel, setSelectedModel] = useState<string>("claude-sonnet-4-6");
+  const [selectedModel, setSelectedModel] = useState<string>("claude-sonnet-5");
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("tr");
   const [apiKey, setApiKey] = useState("");
@@ -101,9 +106,18 @@ export default function TranslatorClaudeApp() {
   } | null>(null);
   const [translationCost, setTranslationCost] = useState<number | null>(null);
   const [totalCost, setTotalCost] = useState(0);
+  const [isModelInfoOpen, setIsModelInfoOpen] = useState(false);
 
-  const activeMaxOutputTokens =
-    CLAUDE_MODEL_MAX_OUTPUT_TOKENS[selectedModel] ?? CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS;
+  const { models, fetchedAt } = useClaudeModels(apiKey);
+  const activeModelInfo = models.find((m) => m.id === selectedModel);
+  const activeMaxOutputTokens = activeModelInfo?.outputTokenLimit ?? CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS;
+
+  // Keep the selected model valid once the live catalog replaces the fallback list.
+  useEffect(() => {
+    if (models.length && !models.some((m) => m.id === selectedModel)) {
+      setSelectedModel(models[0].id);
+    }
+  }, [models, selectedModel]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -231,6 +245,7 @@ export default function TranslatorClaudeApp() {
           sourceLang,
           targetLang,
           model: selectedModel,
+          maxOutputTokens: activeMaxOutputTokens,
           apiKey,
         }),
       });
@@ -245,7 +260,7 @@ export default function TranslatorClaudeApp() {
 
       if (data.usage) {
         setTokenUsage(data.usage);
-        const pricing = CLAUDE_MODEL_PRICING[selectedModel];
+        const pricing = activeModelInfo?.pricing;
         if (pricing) {
           const cost =
             (data.usage.inputTokens / 1_000_000) * pricing.inputPer1M +
@@ -264,7 +279,7 @@ export default function TranslatorClaudeApp() {
     } finally {
       setIsLoading(false);
     }
-  }, [apiKey, inputText, selectedModel, sourceLang, targetLang]);
+  }, [apiKey, inputText, selectedModel, sourceLang, targetLang, activeMaxOutputTokens, activeModelInfo]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -286,9 +301,18 @@ export default function TranslatorClaudeApp() {
               <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block font-display">
                 Model
               </label>
-              <span className="text-[10px] text-gray-500 font-display tabular-nums whitespace-nowrap">
-                Max output: {activeMaxOutputTokens.toLocaleString()} tokens
-              </span>
+              <button
+                type="button"
+                onClick={() => setIsModelInfoOpen(true)}
+                className="token-meta-slider bg-transparent border-0 p-0 m-0 text-left cursor-pointer text-[10px] text-gray-500 hover:text-violet-300 font-display tabular-nums whitespace-nowrap transition-colors"
+                title="View all model token limits"
+              >
+                <ul className="token-meta-slider-track">
+                  <li className="token-meta-item">Input token limit: {(activeModelInfo?.inputTokenLimit ?? 200_000).toLocaleString()}</li>
+                  <li className="token-meta-item">Output token limit: {activeMaxOutputTokens.toLocaleString()}</li>
+                  <li className="token-meta-item" aria-hidden="true">Input token limit: {(activeModelInfo?.inputTokenLimit ?? 200_000).toLocaleString()}</li>
+                </ul>
+              </button>
             </div>
             <select
               value={selectedModel}
@@ -300,7 +324,7 @@ export default function TranslatorClaudeApp() {
                 backgroundPosition: "right 12px center",
               }}
             >
-              {CLAUDE_MODELS.map((m) => (
+              {models.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
                 </option>
@@ -554,6 +578,16 @@ export default function TranslatorClaudeApp() {
           )}
         </div>
       </div>
+
+      {isModelInfoOpen && (
+        <ModelInfoModal
+          models={models}
+          selectedModel={selectedModel}
+          fetchedAt={fetchedAt}
+          onClose={() => setIsModelInfoOpen(false)}
+          accentBadgeClassName="bg-violet-500/15 text-violet-300 border-violet-500/25"
+        />
+      )}
     </div>
   );
 }

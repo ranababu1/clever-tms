@@ -2,25 +2,33 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
-  CLAUDE_MODELS,
-  CLAUDE_MODEL_MAX_OUTPUT_TOKENS,
   CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS,
   CLAUDE_GODMODE_MAX_OUTPUT_CAP,
-  CLAUDE_MODEL_PRICING,
+  supportsSamplingParams,
 } from "@/lib/claude-translation-models";
+import { useClaudeModels } from "@/lib/useClaudeModels";
+import ModelInfoModal from "@/components/ModelInfoModal";
 import { getPromptTemplateForLang } from "@/lib/translation-system-prompt";
 
+// Language options — alphabetical, with auto-detect pinned first. Used for both "From" and
+// "To"; only de/tr/vi have a dedicated system prompt (see translation-system-prompt.ts), other
+// targets fall back to the German prompt template with the target language name substituted.
 const LANGUAGES = [
   { code: "auto", label: "Auto-detect" },
+  { code: "ar", label: "Arabic" },
   { code: "en", label: "English" },
-  { code: "es", label: "Spanish" },
-  { code: "pt", label: "Portuguese" },
-  { code: "tr", label: "Turkish" },
+  { code: "fr", label: "French" },
   { code: "de", label: "German" },
+  { code: "el", label: "Greek" },
+  { code: "ja", label: "Japanese" },
+  { code: "zh", label: "Mandarin Chinese" },
+  { code: "pt", label: "Portuguese" },
+  { code: "es", label: "Spanish" },
+  { code: "tr", label: "Turkish" },
   { code: "vi", label: "Vietnamese" },
 ] as const;
 
-const TARGET_LANGUAGES = LANGUAGES.filter((l) => ["de", "tr", "vi"].includes(l.code));
+const TARGET_LANGUAGES = LANGUAGES.filter((l) => l.code !== "auto");
 const API_KEY_STORAGE_KEY = "claude_translator_api_key";
 const API_KEY_UPDATED_EVENT = "claude-api-key-updated";
 
@@ -89,7 +97,7 @@ function IconClear() {
 export default function GodModeClaudeApp() {
   const [inputText, setInputText] = useState("");
   const [translatedText, setTranslatedText] = useState("");
-  const [selectedModel, setSelectedModel] = useState<string>("claude-sonnet-4-6");
+  const [selectedModel, setSelectedModel] = useState<string>("claude-sonnet-5");
   const [sourceLang, setSourceLang] = useState("auto");
   const [targetLang, setTargetLang] = useState("tr");
   const [apiKey, setApiKey] = useState("");
@@ -106,6 +114,7 @@ export default function GodModeClaudeApp() {
   } | null>(null);
   const [translationCost, setTranslationCost] = useState<number | null>(null);
   const [totalCost, setTotalCost] = useState(0);
+  const [isModelInfoOpen, setIsModelInfoOpen] = useState(false);
 
   const [creativity, setCreativity] = useState(0.8);
   const [topK, setTopK] = useState(100);
@@ -115,10 +124,21 @@ export default function GodModeClaudeApp() {
   const [systemPrompt, setSystemPrompt] = useState(() => getPromptTemplateForLang("de"));
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const { models, fetchedAt } = useClaudeModels(apiKey);
+  const activeModelInfo = models.find((m) => m.id === selectedModel);
+  const samplingSupported = supportsSamplingParams(selectedModel);
   const modelCeiling = Math.min(
-    CLAUDE_MODEL_MAX_OUTPUT_TOKENS[selectedModel] ?? CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS,
+    activeModelInfo?.outputTokenLimit ?? CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS,
     CLAUDE_GODMODE_MAX_OUTPUT_CAP
   );
+
+  // Keep the selected model valid once the live catalog replaces the fallback list.
+  useEffect(() => {
+    if (models.length && !models.some((m) => m.id === selectedModel)) {
+      setSelectedModel(models[0].id);
+    }
+  }, [models, selectedModel]);
 
   useEffect(() => {
     setMaxTokens((prev) => Math.min(prev, modelCeiling));
@@ -233,7 +253,7 @@ export default function GodModeClaudeApp() {
     setActivePanel("output");
     if (data.usage) {
       setTokenUsage(data.usage);
-      const pricing = CLAUDE_MODEL_PRICING[selectedModel];
+      const pricing = activeModelInfo?.pricing;
       if (pricing) {
         const cost =
           (data.usage.inputTokens / 1_000_000) * pricing.inputPer1M +
@@ -259,6 +279,7 @@ export default function GodModeClaudeApp() {
     topK,
     maxTokens,
     stopSequences,
+    activeModelInfo,
   ]);
 
   const handleTranslate = useCallback(async () => {
@@ -303,9 +324,18 @@ export default function GodModeClaudeApp() {
               <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider font-display">
                 Model
               </label>
-              <span className="text-[10px] text-gray-500 font-display tabular-nums whitespace-nowrap">
-                Max: {modelCeiling.toLocaleString()} tokens
-              </span>
+              <button
+                type="button"
+                onClick={() => setIsModelInfoOpen(true)}
+                className="token-meta-slider bg-transparent border-0 p-0 m-0 text-left cursor-pointer text-[10px] text-gray-500 hover:text-amber-400 font-display tabular-nums whitespace-nowrap transition-colors"
+                title="View all model token limits"
+              >
+                <ul className="token-meta-slider-track">
+                  <li className="token-meta-item">Input token limit: {(activeModelInfo?.inputTokenLimit ?? 200_000).toLocaleString()}</li>
+                  <li className="token-meta-item">Output token limit: {modelCeiling.toLocaleString()}</li>
+                  <li className="token-meta-item" aria-hidden="true">Input token limit: {(activeModelInfo?.inputTokenLimit ?? 200_000).toLocaleString()}</li>
+                </ul>
+              </button>
             </div>
             <select
               value={selectedModel}
@@ -317,7 +347,7 @@ export default function GodModeClaudeApp() {
                 backgroundPosition: "right 12px center",
               }}
             >
-              {CLAUDE_MODELS.map((m) => (
+              {models.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
                 </option>
@@ -400,6 +430,12 @@ export default function GodModeClaudeApp() {
           </button>
         </div>
 
+        {!samplingSupported && (
+          <p className="text-[11px] text-amber-400/90 font-display mb-4 -mt-2">
+            This model doesn&apos;t accept temperature/top-k (Claude decides sampling itself) — the sliders below are disabled and won&apos;t be sent.
+          </p>
+        )}
+
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2.5">
             <label className="text-xs font-semibold text-gray-200 font-display">Creativity (temperature)</label>
@@ -413,8 +449,9 @@ export default function GodModeClaudeApp() {
             max="1"
             step="0.05"
             value={creativity}
+            disabled={!samplingSupported}
             onChange={(e) => setCreativity(Number(e.target.value))}
-            className="gm-slider"
+            className="gm-slider disabled:opacity-40 disabled:cursor-not-allowed"
             style={sliderStyle(creativity, 0, 1)}
           />
           <div className="flex justify-between mt-1.5">
@@ -435,8 +472,9 @@ export default function GodModeClaudeApp() {
               max="500"
               step="1"
               value={topK}
+              disabled={!samplingSupported}
               onChange={(e) => setTopK(Number(e.target.value))}
-              className="gm-slider"
+              className="gm-slider disabled:opacity-40 disabled:cursor-not-allowed"
               style={sliderStyle(topK, 1, 500)}
             />
             <p className="text-[11px] text-gray-600 font-display mt-2">
@@ -722,6 +760,16 @@ export default function GodModeClaudeApp() {
           )}
         </div>
       </div>
+
+      {isModelInfoOpen && (
+        <ModelInfoModal
+          models={models}
+          selectedModel={selectedModel}
+          fetchedAt={fetchedAt}
+          onClose={() => setIsModelInfoOpen(false)}
+          accentBadgeClassName="bg-amber-500/15 text-amber-400 border-amber-500/25"
+        />
+      )}
     </div>
   );
 }

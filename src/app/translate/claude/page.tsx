@@ -42,11 +42,11 @@ export default function TranslateClaudePage() {
           <div className="flex items-center gap-3 min-w-0">
             <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity shrink-0">
               <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center text-white font-bold text-sm font-display">
-                C
+                S
               </div>
               <div className="min-w-0">
                 <h1 className="text-base font-semibold tracking-tight font-display text-white truncate">
-                  Clever TMS
+                  Smart TMS
                 </h1>
                 <p className="text-[11px] text-gray-400 tracking-wide uppercase font-display">
                   Powered by Anthropic Models

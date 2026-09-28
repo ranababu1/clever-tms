@@ -191,20 +191,16 @@ select option {
 }
 
 @keyframes tokenMetaSlide {
-  0%, 22% {
+  0%, 30% {
     transform: translateY(0);
   }
 
-  33%, 55% {
+  45%, 75% {
     transform: translateY(calc(-1 * var(--token-meta-line-height)));
   }
 
-  66%, 88% {
-    transform: translateY(calc(-2 * var(--token-meta-line-height)));
-  }
-
   100% {
-    transform: translateY(calc(-3 * var(--token-meta-line-height)));
+    transform: translateY(calc(-2 * var(--token-meta-line-height)));
   }
 }
 

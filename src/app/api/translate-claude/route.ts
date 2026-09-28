@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS,
-  CLAUDE_MODEL_MAX_OUTPUT_TOKENS,
+  CLAUDE_GODMODE_MAX_OUTPUT_CAP,
   isAllowedClaudeModel,
+  supportsSamplingParams,
 } from "@/lib/claude-translation-models";
 import { buildTranslationSystemPrompt } from "@/lib/translation-system-prompt";
 
@@ -13,13 +14,14 @@ interface TranslateClaudeRequest {
   sourceLang: string;
   targetLang: string;
   model: string;
+  maxOutputTokens?: number;
   apiKey: string;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: TranslateClaudeRequest = await request.json();
-    const { text, sourceLang, targetLang, model, apiKey } = body;
+    const { text, sourceLang, targetLang, model, maxOutputTokens: requestedMaxOutputTokens, apiKey } = body;
 
     if (!text || !text.trim()) {
       return NextResponse.json({ error: "Text to translate is required." }, { status: 400 });
@@ -54,7 +56,26 @@ export async function POST(request: NextRequest) {
 
     const systemPrompt = buildTranslationSystemPrompt(sourceLang, targetLang);
     const maxTokens =
-      CLAUDE_MODEL_MAX_OUTPUT_TOKENS[model] ?? CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS;
+      Number.isFinite(requestedMaxOutputTokens) && (requestedMaxOutputTokens as number) > 0
+        ? Math.min(CLAUDE_GODMODE_MAX_OUTPUT_CAP, Math.round(requestedMaxOutputTokens as number))
+        : CLAUDE_DEFAULT_MAX_OUTPUT_TOKENS;
+
+    const payload: Record<string, unknown> = {
+      model,
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: "user", content: text }],
+    };
+
+    // Sonnet 5 / Opus 5 / Opus 5.5 reject temperature/top_p/top_k outright (400) — only
+    // include them for models that still accept sampling controls (e.g. Haiku 4.5).
+    if (supportsSamplingParams(model)) {
+      // Higher temperature encourages natural, idiomatic phrasing over literal word-for-word output.
+      // top_k caps vocabulary diversity to reduce noise while preserving creative rephrasing.
+      // Note: Claude 4.x rejects top_p when temperature is set; use temperature + top_k only.
+      payload.temperature = 0.7;
+      payload.top_k = 100;
+    }
 
     const anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -63,17 +84,7 @@ export async function POST(request: NextRequest) {
         "x-api-key": apiKey.trim(),
         "anthropic-version": ANTHROPIC_VERSION,
       },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        system: systemPrompt,
-        messages: [{ role: "user", content: text }],
-        // Higher temperature encourages natural, idiomatic phrasing over literal word-for-word output.
-        // top_k caps vocabulary diversity to reduce noise while preserving creative rephrasing.
-        // Note: Claude 4.x rejects top_p when temperature is set; use temperature + top_k only.
-        temperature: 0.7,
-        top_k: 100,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!anthropicResponse.ok) {

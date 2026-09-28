@@ -1,11 +1,11 @@
-# Clever TMS
+# Smart TMS
 
 A markup-safe AI translation tool powered by Google's Gemini API. Translates natural language while preserving code snippets.
 
 ## Features
 
-- **Multiple Gemini Models** — Choose from Flash, Pro, and preview models
-- **6 Languages** — English, Spanish, Portuguese, Turkish, German, Vietnamese + auto-detect
+- **Live Gemini Model Catalog** — Fetched from Google and cached for 7 days; shows the top 5 most recent text-generation models (4 latest + 1 Pro)
+- **11 Languages** — English, Spanish, Portuguese, Turkish, German, Vietnamese, Mandarin Chinese, Hindi, Arabic, French, Bengali + auto-detect
 - **Client-Side API Key** — Your key stays in sessionStorage (never sent to any server except Google)
 - **Responsive Dark UI** — Clean interface built with DaisyUI + Tailwind CSS
 - **Keyboard Shortcut** — `Ctrl/⌘ + Enter` to translate

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { LANGUAGE_NAMES, MODEL_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS } from "@/lib/translation-models";
+import { LANGUAGE_NAMES, DEFAULT_MAX_OUTPUT_TOKENS } from "@/lib/translation-models";
 import { getGeminiClient } from "@/lib/gemini-client";
 
 interface ReviewRequest {
@@ -81,8 +81,7 @@ export async function POST(request: NextRequest) {
         }
 
         const targetLangName = LANGUAGE_NAMES[targetLang] || targetLang;
-        const maxOutputTokens = MODEL_MAX_OUTPUT_TOKENS[model] ?? DEFAULT_MAX_OUTPUT_TOKENS;
-        const reviewMaxTokens = Math.min(maxOutputTokens, 4096);
+        const reviewMaxTokens = Math.min(DEFAULT_MAX_OUTPUT_TOKENS, 4096);
 
         const systemInstruction = `You are a professional translation QA specialist for website copy and marketing content.
 

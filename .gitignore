@@ -37,3 +37,6 @@ next-env.d.ts
 /.claude
 
 .env
+
+# server-side cache (Gemini model catalog)
+/.cache

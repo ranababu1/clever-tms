@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { HarmBlockThreshold, HarmCategory } from "@google/genai";
-import { MODEL_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS } from "@/lib/translation-models";
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@/lib/translation-models";
 import { buildTranslationSystemPrompt } from "@/lib/translation-system-prompt";
 import { getGeminiClient } from "@/lib/gemini-client";
 
@@ -9,13 +9,14 @@ interface TranslateRequest {
   sourceLang: string;
   targetLang: string;
   model: string;
+  maxOutputTokens?: number;
   apiKey: string;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: TranslateRequest = await request.json();
-    const { text, sourceLang, targetLang, model, apiKey } = body;
+    const { text, sourceLang, targetLang, model, maxOutputTokens: requestedMaxOutputTokens, apiKey } = body;
 
     if (!text || !text.trim()) {
       return NextResponse.json({ error: "Text to translate is required." }, { status: 400 });
@@ -35,7 +36,10 @@ export async function POST(request: NextRequest) {
     }
 
     const systemPrompt = buildTranslationSystemPrompt(sourceLang, targetLang);
-    const maxOutputTokens = MODEL_MAX_OUTPUT_TOKENS[model] ?? DEFAULT_MAX_OUTPUT_TOKENS;
+    const maxOutputTokens =
+      Number.isFinite(requestedMaxOutputTokens) && (requestedMaxOutputTokens as number) > 0
+        ? Math.round(requestedMaxOutputTokens as number)
+        : DEFAULT_MAX_OUTPUT_TOKENS;
 
     const ai = getGeminiClient(apiKey);
     const response = await ai.models.generateContent({

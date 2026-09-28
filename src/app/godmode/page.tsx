@@ -46,7 +46,7 @@ export default function GodModePage() {
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-base font-semibold tracking-tight font-display text-white">Clever TMS</h1>
+                <h1 className="text-base font-semibold tracking-tight font-display text-white">Smart TMS</h1>
                 <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-amber-500/15 text-amber-400 border border-amber-500/25 font-display">
                   God Mode
                 </span>

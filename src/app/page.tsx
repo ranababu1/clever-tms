@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CursorConstellation from "@/components/CursorConstellation";
 
 export default function Home() {
   return (
@@ -9,20 +10,20 @@ export default function Home() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white font-bold text-base font-display">
-              C
+              S
             </div>
             <span className="text-lg font-bold tracking-tight font-display bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-              Clever TMS
+              Smart TMS
             </span>
           </Link>
 
           {/* Nav links — desktop */}
           <nav className="hidden lg:flex items-center gap-1">
-            <NavLink href="https://aieditor.imrn.dev/?ref=clevertms">AI Image Editor</NavLink>
-            <NavLink href="https://audit.imrn.dev/?ref=clevertms">Web Asset Audit</NavLink>
-            <NavLink href="https://pixfix.imrn.dev/?ref=clevertms">Image Optimizer</NavLink>
-            <NavLink href="https://crawler.imrn.dev/?ref=clevertms">Web Crawler</NavLink>
-            <NavLink href="https://www.freeabtest.com/?ref=clevertms">Free AB Test Tool</NavLink>
+            <NavLink href="https://aieditor.imrn.dev/?ref=smarttms">AI Image Editor</NavLink>
+            <NavLink href="https://audit.imrn.dev/?ref=smarttms">Web Asset Audit</NavLink>
+            <NavLink href="https://pixfix.imrn.dev/?ref=smarttms">Image Optimizer</NavLink>
+            <NavLink href="https://crawler.imrn.dev/?ref=smarttms">Web Crawler</NavLink>
+            <NavLink href="https://www.freeabtest.com/?ref=smarttms">Free AB Test Tool</NavLink>
           </nav>
 
           {/* CTA badge */}
@@ -36,6 +37,9 @@ export default function Home() {
 
       {/* ── Hero Section ── */}
       <section className="relative flex-1 flex items-center justify-center px-4 sm:px-6 py-20 sm:py-24 overflow-hidden landing-grid-bg">
+        {/* Cursor constellation — subtle, behind the glow + content */}
+        <CursorConstellation />
+
         {/* Background glow */}
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[760px] h-[460px] bg-cyan-500/10 rounded-full blur-[120px] float-slow" />
@@ -106,7 +110,7 @@ export default function Home() {
       <section className="w-full px-4 sm:px-6 py-20 sm:py-28">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-3xl sm:text-4xl font-bold text-center text-white font-display tracking-tight mb-4">
-            Why Clever TMS?
+            Why Smart TMS?
           </h2>
           <p className="text-center text-gray-400 mb-16 max-w-lg mx-auto font-display">
             Free to use, powerful, and private. No sign-ups, no nonsense.
@@ -175,20 +179,20 @@ export default function Home() {
       <footer className="w-full border-t border-[#2a2d3a] bg-[#0c0e15] py-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center flex flex-col items-center gap-3">
           <p className="font-semibold text-lg text-white font-display tracking-tight">
-            Clever TMS
+            Smart TMS
           </p>
           <p className="text-sm text-gray-400 font-display">
             AI-powered translation for anything and everything
           </p>
           <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 font-display">
-            <a href="https://audit.imrn.dev/?ref=clevertms" className="hover:text-cyan-400 transition-colors">Web Asset Audit</a>
+            <a href="https://audit.imrn.dev/?ref=smarttms" className="hover:text-cyan-400 transition-colors">Web Asset Audit</a>
             <span className="text-gray-600">|</span>
-            <a href="https://pixfix.imrn.dev/?ref=clevertms" className="hover:text-cyan-400 transition-colors">Image Optimizer</a>
+            <a href="https://pixfix.imrn.dev/?ref=smarttms" className="hover:text-cyan-400 transition-colors">Image Optimizer</a>
             <span className="text-gray-600">|</span>
-            <a href="https://crawler.imrn.dev/?ref=clevertms" className="hover:text-cyan-400 transition-colors">Web Crawler</a>
+            <a href="https://crawler.imrn.dev/?ref=smarttms" className="hover:text-cyan-400 transition-colors">Web Crawler</a>
           </div>
           <p className="text-xs text-gray-600 mt-4">
-            &copy; 2026 Clever TMS. Powered by AI
+            &copy; 2026 Smart TMS. Powered by AI
           </p>
         </div>
       </footer>

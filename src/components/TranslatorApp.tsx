@@ -1,21 +1,31 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { MODELS, MODEL_LIMITS, MODEL_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS, LANGUAGE_NAMES, MODEL_PRICING } from "@/lib/translation-models";
+import { DEFAULT_MAX_OUTPUT_TOKENS, LANGUAGE_NAMES } from "@/lib/translation-models";
+import { useGeminiModels } from "@/lib/useGeminiModels";
+import ModelInfoModal from "@/components/ModelInfoModal";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
+// Language options — alphabetical, with auto-detect pinned first. Used for both "From" and
+// "To"; only de/tr/vi have a dedicated system prompt (see translation-system-prompt.ts), other
+// targets fall back to the German prompt template with the target language name substituted.
 const LANGUAGES = [
   { code: "auto", label: "Auto-detect" },
+  { code: "ar", label: "Arabic" },
   { code: "en", label: "English" },
-  { code: "es", label: "Spanish" },
-  { code: "pt", label: "Portuguese" },
-  { code: "tr", label: "Turkish" },
+  { code: "fr", label: "French" },
   { code: "de", label: "German" },
+  { code: "el", label: "Greek" },
+  { code: "ja", label: "Japanese" },
+  { code: "zh", label: "Mandarin Chinese" },
+  { code: "pt", label: "Portuguese" },
+  { code: "es", label: "Spanish" },
+  { code: "tr", label: "Turkish" },
   { code: "vi", label: "Vietnamese" },
 ] as const;
 
-const TARGET_LANGUAGES = LANGUAGES.filter((l) => ["de", "tr", "vi"].includes(l.code));
+const TARGET_LANGUAGES = LANGUAGES.filter((l) => l.code !== "auto");
 
 const TARGET_LANG_STORAGE_KEY = "gemini_translator_target_lang";
 const API_KEY_STORAGE_KEY = "gemini_translator_api_key";
@@ -109,9 +119,18 @@ export default function TranslatorApp() {
   const [apiKey, setApiKey] = useState("");
   const [translationCost, setTranslationCost] = useState<number | null>(null);
   const [totalCost, setTotalCost] = useState(0);
+  const [isModelInfoOpen, setIsModelInfoOpen] = useState(false);
 
-  const activeMaxOutputTokens =
-    MODEL_MAX_OUTPUT_TOKENS[selectedModel] ?? DEFAULT_MAX_OUTPUT_TOKENS;
+  const { models, fetchedAt } = useGeminiModels(apiKey);
+  const activeModelInfo = models.find((m) => m.id === selectedModel);
+  const activeMaxOutputTokens = activeModelInfo?.outputTokenLimit ?? DEFAULT_MAX_OUTPUT_TOKENS;
+
+  // Keep the selected model valid once the live catalog replaces the fallback list.
+  useEffect(() => {
+    if (models.length && !models.some((m) => m.id === selectedModel)) {
+      setSelectedModel(models[0].id);
+    }
+  }, [models, selectedModel]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -234,6 +253,7 @@ export default function TranslatorApp() {
         sourceLang,
         targetLang,
         model: selectedModel,
+        maxOutputTokens: activeMaxOutputTokens,
         apiKey,
       }),
     });
@@ -249,7 +269,7 @@ export default function TranslatorApp() {
 
     if (data.usage) {
       setTokenUsage(data.usage);
-      const pricing = MODEL_PRICING[selectedModel];
+      const pricing = activeModelInfo?.pricing;
       if (pricing) {
         const cost =
           (data.usage.inputTokens / 1_000_000) * pricing.inputPer1M +
@@ -265,7 +285,7 @@ export default function TranslatorApp() {
     }
 
     return data.translatedText as string;
-  }, [inputText, selectedModel, sourceLang, targetLang]);
+  }, [inputText, selectedModel, sourceLang, targetLang, activeMaxOutputTokens, activeModelInfo]);
 
   const requestReview = useCallback(async (draftTranslation: string) => {
     const response = await fetch("/api/review-translation", {
@@ -382,14 +402,18 @@ export default function TranslatorApp() {
               <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block font-display">
                 Model
               </label>
-              <div className="token-meta-slider text-[10px] text-gray-500 font-display tabular-nums whitespace-nowrap">
+              <button
+                type="button"
+                onClick={() => setIsModelInfoOpen(true)}
+                className="token-meta-slider bg-transparent border-0 p-0 m-0 text-left cursor-pointer text-[10px] text-gray-500 hover:text-cyan-400 font-display tabular-nums whitespace-nowrap transition-colors"
+                title="View all model token limits"
+              >
                 <ul className="token-meta-slider-track">
-                  <li className="token-meta-item">Max output: {activeMaxOutputTokens.toLocaleString()} tokens</li>
-                  <li className="token-meta-item">Input token limit: {(MODEL_LIMITS[selectedModel]?.inputTokens ?? 1_048_576).toLocaleString()}</li>
-                  <li className="token-meta-item">Output token limit: {(MODEL_LIMITS[selectedModel]?.outputTokens ?? activeMaxOutputTokens).toLocaleString()}</li>
-                  <li className="token-meta-item" aria-hidden="true">Max output: {activeMaxOutputTokens.toLocaleString()} tokens</li>
+                  <li className="token-meta-item">Input token limit: {(activeModelInfo?.inputTokenLimit ?? 1_048_576).toLocaleString()}</li>
+                  <li className="token-meta-item">Output token limit: {activeMaxOutputTokens.toLocaleString()}</li>
+                  <li className="token-meta-item" aria-hidden="true">Input token limit: {(activeModelInfo?.inputTokenLimit ?? 1_048_576).toLocaleString()}</li>
                 </ul>
-              </div>
+              </button>
             </div>
             <select
               value={selectedModel}
@@ -401,9 +425,9 @@ export default function TranslatorApp() {
                 backgroundPosition: "right 12px center",
               }}
             >
-              {MODELS.map((m) => (
+              {models.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.label}
+                  {m.label}{m.isPro ? " (Pro)" : ""}
                 </option>
               ))}
             </select>
@@ -728,6 +752,15 @@ export default function TranslatorApp() {
           )}
         </div>
       </div>
+
+      {isModelInfoOpen && (
+        <ModelInfoModal
+          models={models}
+          selectedModel={selectedModel}
+          fetchedAt={fetchedAt}
+          onClose={() => setIsModelInfoOpen(false)}
+        />
+      )}
     </div>
   );
 }
