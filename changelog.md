@@ -4,6 +4,15 @@ Incremental history of this app. Newest first, one entry per commit, headed by t
 short hash on `main`. Entries older than the first AI-assisted one are reconstructed from
 `git log` after the fact.
 
+## 5e7dace — Trim critique checklist items
+
+- Dropped 2 items from the critique checklist in all three dedicated prompts (`de`/`tr`/`vi`):
+  "no consecutive sentences starting with the same word" and the generic "code/markup left
+  unchanged" check (already covered by the separate CODE/MARKUP RULES section, and risky to
+  have a fix-retry pass "correct" since that could mean touching code). 17 → 15 items,
+  renumbered. Since the verification checklist and the fix-retry loop both pull from this block
+  programmatically, they pick up the trimmed list automatically — no other code changes needed.
+
 ## feec203 — Verification retry loop and prompt/UI polish
 
 - **Draft/Critique tabs (Gemini + Claude simple mode):** `/api/translate` and
