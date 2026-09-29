@@ -4,6 +4,21 @@ Incremental history of this app. Newest first, one entry per commit, headed by t
 short hash on `main`. Entries older than the first AI-assisted one are reconstructed from
 `git log` after the fact.
 
+## 7b1393b — Rework landing page particle animation
+
+- `CursorConstellation.tsx` rebuilt to more closely match antigravity.google's hero effect:
+  particle count now scales with container area (70–220, vs. a flat 48), each particle gets a
+  random hue across a cyan→violet→pink spectrum with a per-particle twinkle, and everything
+  draws with `globalCompositeOperation: "lighter"` (soft radial-gradient glow + bright core per
+  particle, gradient-colored connecting lines) so overlaps actually brighten instead of just
+  layering flat opacity.
+- Cursor interaction is now real physics instead of just drawn lines: nearby particles are
+  pulled toward the cursor with a slight tangential swirl (orbit rather than pile-up), with
+  drag + a speed cap so motion settles, plus a soft violet halo centered on the cursor.
+- Couldn't literally copy antigravity.google's source — its canvas/WebGL animation logic isn't
+  present in the static HTML a text-fetch can see — so this is a close visual match, not a
+  byte-for-byte port.
+
 ## 5e7dace — Trim critique checklist items
 
 - Dropped 2 items from the critique checklist in all three dedicated prompts (`de`/`tr`/`vi`):
