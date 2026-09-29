@@ -61,7 +61,7 @@ export default function ModelInfoModal({
                 <th className="text-right px-3 py-2.5">Input Token Limit</th>
                 <th className="text-right px-3 py-2.5">Output Token Limit</th>
                 <th className="text-right px-3 py-2.5">Cost / 1M Tokens</th>
-                <th className="text-right px-3 py-2.5">Cost / 1L Chars (In+Out)</th>
+                <th className="text-right px-3 py-2.5">Cost / 1L Chars</th>
               </tr>
             </thead>
             <tbody>

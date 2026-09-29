@@ -14,9 +14,11 @@ export function usdToInr(usd: number): number {
 // Cost to translate ~1,00,000 (1 lakh) characters, counted as both input AND output tokens —
 // a translation round-trip reads and writes roughly that much text. Uses the same
 // "~4 characters per token" estimate already shown elsewhere in the UI (char counters).
+// Doubled to reflect the draft+critique+final generation actually billed per request.
 export function costPerLakhChars(pricing: Pricing): number {
   const tokens = 100_000 / 4;
-  return (tokens / 1_000_000) * pricing.inputPer1M + (tokens / 1_000_000) * pricing.outputPer1M;
+  const roundTripCost = (tokens / 1_000_000) * pricing.inputPer1M + (tokens / 1_000_000) * pricing.outputPer1M;
+  return roundTripCost * 2;
 }
 
 export function formatUsd(usd: number): string {

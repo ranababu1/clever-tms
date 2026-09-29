@@ -12,6 +12,7 @@ import {
 import { useClaudeModels } from "@/lib/useClaudeModels";
 import ModelInfoModal from "@/components/ModelInfoModal";
 import { getPromptTemplateForLang } from "@/lib/translation-system-prompt";
+import { hasDedicatedPrompt } from "@/lib/translation-models";
 
 // Language options — alphabetical, with auto-detect pinned first. Used for both "From" and
 // "To"; only de/tr/vi have a dedicated system prompt (see translation-system-prompt.ts), other
@@ -392,7 +393,11 @@ export default function GodModeClaudeApp() {
                 }}
               >
                 {TARGET_LANGUAGES.map((l) => (
-                  <option key={l.code} value={l.code}>
+                  <option
+                    key={l.code}
+                    value={l.code}
+                    style={hasDedicatedPrompt(l.code) ? undefined : { color: "#a78bfa" }}
+                  >
                     {l.label}
                   </option>
                 ))}
@@ -577,7 +582,7 @@ export default function GodModeClaudeApp() {
             <span className="ml-auto text-[11px] text-amber-300/90 font-display">Set API key to start</span>
           )}
           {totalCost > 0 && (
-            <span className="ml-auto text-[11px] text-amber-400/80 font-display tabular-nums">Session: ${totalCost.toFixed(6)}</span>
+            <span className="ml-auto text-[11px] text-amber-400/80 font-display tabular-nums">Session: ${totalCost.toFixed(2)}</span>
           )}
         </div>
 
@@ -633,7 +638,7 @@ export default function GodModeClaudeApp() {
                   <span className="text-[10px] text-gray-500 font-display tabular-nums">
                     {translatedText.length.toLocaleString()} chars
                     {tokenUsage && <> | {tokenUsage.outputTokens.toLocaleString()} tokens</>}
-                    {translationCost != null && <> | ${translationCost.toFixed(6)}</>}
+                    {translationCost != null && <> | ${translationCost.toFixed(2)}</>}
                   </span>
                   <button
                     onClick={handleCopy}
@@ -660,12 +665,19 @@ export default function GodModeClaudeApp() {
               {isLoading ? (
                 <div className="translation-wow h-full min-h-[360px] flex items-center justify-center p-6">
                   <div className="translation-wow-card">
+                    <div className="ai-orb" aria-hidden="true">
+                      <span className="ai-orb-ring" />
+                      <span className="ai-orb-ring" />
+                      <span className="ai-orb-core" />
+                    </div>
                     <p className="translation-wow-title">Translator Agent In Action</p>
-                    <div className="translation-canvas" aria-hidden="true" />
                     <div className="translation-message-rail">
                       <span className="translation-message-text" key={loadingMessageIndex}>
                         {LOADING_MESSAGES[loadingMessageIndex]}
                       </span>
+                    </div>
+                    <div className="ai-progress-track" aria-hidden="true">
+                      <div className="ai-progress-fill" />
                     </div>
                   </div>
                 </div>

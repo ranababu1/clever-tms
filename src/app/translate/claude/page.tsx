@@ -5,17 +5,20 @@ import Link from "next/link";
 import TranslatorClaudeApp from "@/components/TranslatorClaudeApp";
 
 const API_KEY_STORAGE_KEY = "claude_translator_api_key";
+const VERIFY_ENABLED_STORAGE_KEY = "claude_translator_verify_enabled";
 const API_KEY_UPDATED_EVENT = "claude-api-key-updated";
 
 export default function TranslateClaudePage() {
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
+  const [verifyEnabledDraft, setVerifyEnabledDraft] = useState(false);
 
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem(API_KEY_STORAGE_KEY) || "";
       setApiKeyDraft(stored);
+      setVerifyEnabledDraft(sessionStorage.getItem(VERIFY_ENABLED_STORAGE_KEY) === "1");
     } catch {
       /* sessionStorage not available */
     }
@@ -28,6 +31,7 @@ export default function TranslateClaudePage() {
       } else {
         sessionStorage.removeItem(API_KEY_STORAGE_KEY);
       }
+      sessionStorage.setItem(VERIFY_ENABLED_STORAGE_KEY, verifyEnabledDraft ? "1" : "0");
       window.dispatchEvent(new Event(API_KEY_UPDATED_EVENT));
     } catch {
       /* sessionStorage not available */
@@ -122,6 +126,21 @@ export default function TranslateClaudePage() {
                 {showApiKey ? "Hide" : "Show"}
               </button>
             </div>
+
+            <label className="mt-4 flex items-start gap-2.5 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={verifyEnabledDraft}
+                onChange={(e) => setVerifyEnabledDraft(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-[#2a2d3a] bg-[#12141c] text-violet-500 focus:ring-violet-500/40 cursor-pointer"
+              />
+              <span className="text-xs text-gray-300 font-display leading-relaxed group-hover:text-gray-200">
+                Run an independent accuracy verification pass after each translation
+                <span className="block text-[11px] text-gray-500 mt-0.5">
+                  Makes one extra model call per translation to re-check the result. More accurate, but costs more. Leave off for the faster, cheaper default.
+                </span>
+              </span>
+            </label>
 
             <div className="mt-4 flex items-center justify-end gap-2">
               <button

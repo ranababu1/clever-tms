@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { DEFAULT_MAX_OUTPUT_TOKENS, LANGUAGE_NAMES } from "@/lib/translation-models";
+import { DEFAULT_MAX_OUTPUT_TOKENS, LANGUAGE_NAMES, hasDedicatedPrompt } from "@/lib/translation-models";
 import { useGeminiModels } from "@/lib/useGeminiModels";
 import ModelInfoModal from "@/components/ModelInfoModal";
+import { MAX_VERIFICATION_ATTEMPTS, type VerificationAttempt } from "@/lib/verification";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ const TARGET_LANGUAGES = LANGUAGES.filter((l) => l.code !== "auto");
 
 const TARGET_LANG_STORAGE_KEY = "gemini_translator_target_lang";
 const API_KEY_STORAGE_KEY = "gemini_translator_api_key";
+const VERIFY_ENABLED_STORAGE_KEY = "gemini_translator_verify_enabled";
 const API_KEY_UPDATED_EVENT = "gemini-api-key-updated";
 const REVIEW_START_DELAY_MS = 5000;
 const LOADING_MESSAGES = [
@@ -107,7 +109,15 @@ export default function TranslatorApp() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [charCount, setCharCount] = useState(0);
-  const [activePanel, setActivePanel] = useState<"input" | "output">("input");
+  const [activePanel, setActivePanel] = useState<"input" | "draft" | "critique" | "attempt" | "output">("input");
+  const [draftText, setDraftText] = useState<string | null>(null);
+  const [critiqueText, setCritiqueText] = useState<string | null>(null);
+  const [verifyEnabled, setVerifyEnabled] = useState(false);
+  const [attempts, setAttempts] = useState<VerificationAttempt[]>([]);
+  const [activeAttemptIndex, setActiveAttemptIndex] = useState<number | null>(null);
+  const [pendingAttempt, setPendingAttempt] = useState<number | null>(null);
+  const [pendingStage, setPendingStage] = useState<"verify" | "fix" | null>(null);
+  const [retryError, setRetryError] = useState<string | null>(null);
   const [reviewSummary, setReviewSummary] = useState<string[]>([]);
   const [correctedVersion, setCorrectedVersion] = useState<string | null>(null);
   const [reviewHasIssues, setReviewHasIssues] = useState(false);
@@ -150,6 +160,7 @@ export default function TranslatorApp() {
     try {
       const stored = sessionStorage.getItem(API_KEY_STORAGE_KEY);
       if (stored) setApiKey(stored);
+      setVerifyEnabled(sessionStorage.getItem(VERIFY_ENABLED_STORAGE_KEY) === "1");
     } catch {
       /* sessionStorage not available */
     }
@@ -159,6 +170,7 @@ export default function TranslatorApp() {
     const handler = () => {
       try {
         setApiKey(sessionStorage.getItem(API_KEY_STORAGE_KEY) || "");
+        setVerifyEnabled(sessionStorage.getItem(VERIFY_ENABLED_STORAGE_KEY) === "1");
       } catch {
         /* sessionStorage not available */
       }
@@ -236,6 +248,13 @@ export default function TranslatorApp() {
     setError(null);
     setTokenUsage(null);
     setTranslationCost(null);
+    setDraftText(null);
+    setCritiqueText(null);
+    setAttempts([]);
+    setActiveAttemptIndex(null);
+    setPendingAttempt(null);
+    setPendingStage(null);
+    setRetryError(null);
     setReviewSummary([]);
     setCorrectedVersion(null);
     setReviewHasIssues(false);
@@ -243,6 +262,117 @@ export default function TranslatorApp() {
     setIsReviewLoading(false);
     setActivePanel("input");
   }, []);
+
+  const accumulateCost = useCallback(
+    (usage?: { inputTokens: number; outputTokens: number } | null) => {
+      if (!usage) return;
+      const pricing = activeModelInfo?.pricing;
+      if (!pricing) return;
+      const cost =
+        (usage.inputTokens / 1_000_000) * pricing.inputPer1M +
+        (usage.outputTokens / 1_000_000) * pricing.outputPer1M;
+      setTranslationCost((prev) => (prev ?? 0) + cost);
+      setTotalCost((prev) => prev + cost);
+    },
+    [activeModelInfo]
+  );
+
+  // Verify → if it fails, fix just the failing items → verify again, up to MAX_VERIFICATION_ATTEMPTS
+  // rounds. Each round is a separate network call, so each attempt's tab appears the moment that
+  // round actually finishes rather than all at once.
+  const runVerificationRetryLoop = useCallback(
+    async (initialText: string) => {
+      if (!verifyEnabled) return;
+
+      setAttempts([]);
+      setRetryError(null);
+      let currentText = initialText;
+      let attemptNumber = 1;
+
+      try {
+        while (attemptNumber <= MAX_VERIFICATION_ATTEMPTS) {
+          setPendingAttempt(attemptNumber);
+          setPendingStage("verify");
+          setActivePanel("attempt");
+          setActiveAttemptIndex(null);
+
+          const verifyResponse = await fetch("/api/verify-translation", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              originalText: inputText,
+              translatedText: currentText,
+              targetLang,
+              model: selectedModel,
+              apiKey,
+            }),
+          });
+          const verifyData = await verifyResponse.json();
+          if (!verifyResponse.ok) {
+            throw new Error(verifyData.error || "Verification failed.");
+          }
+          accumulateCost(verifyData.usage);
+
+          const checklist: string[] = Array.isArray(verifyData.checklist) ? verifyData.checklist : [];
+          const results: VerificationAttempt["results"] = Array.isArray(verifyData.results)
+            ? verifyData.results
+            : [];
+          const attempt: VerificationAttempt = {
+            attemptNumber,
+            translatedText: currentText,
+            checklist,
+            results,
+            allPassed: Boolean(verifyData.allPassed),
+          };
+
+          setAttempts((prev) => [...prev, attempt]);
+          setActiveAttemptIndex(attemptNumber - 1);
+          setPendingAttempt(null);
+          setPendingStage(null);
+
+          if (attempt.allPassed || attemptNumber === MAX_VERIFICATION_ATTEMPTS) {
+            break;
+          }
+
+          const failingChecks = results
+            .map((r, idx) => ({ pass: r.pass, description: checklist[idx] ?? `Check ${idx + 1}`, note: r.note }))
+            .filter((f) => !f.pass)
+            .map(({ description, note }) => ({ description, note }));
+
+          setPendingAttempt(attemptNumber + 1);
+          setPendingStage("fix");
+
+          const fixResponse = await fetch("/api/fix-translation", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              originalText: inputText,
+              currentTranslation: currentText,
+              targetLang,
+              model: selectedModel,
+              apiKey,
+              failingChecks,
+            }),
+          });
+          const fixData = await fixResponse.json();
+          if (!fixResponse.ok) {
+            throw new Error(fixData.error || "Fix failed.");
+          }
+          accumulateCost(fixData.usage);
+
+          currentText = fixData.translatedText;
+          setTranslatedText(currentText);
+          attemptNumber += 1;
+        }
+      } catch (err) {
+        setRetryError(err instanceof Error ? err.message : "Verification/fix failed.");
+      } finally {
+        setPendingAttempt(null);
+        setPendingStage(null);
+      }
+    },
+    [verifyEnabled, inputText, targetLang, selectedModel, apiKey, accumulateCost]
+  );
 
   const requestTranslation = useCallback(async () => {
     const response = await fetch("/api/translate", {
@@ -265,6 +395,8 @@ export default function TranslatorApp() {
     }
 
     setTranslatedText(data.translatedText);
+    setDraftText(data.draftText ?? null);
+    setCritiqueText(data.critiqueText ?? null);
     setActivePanel("output");
 
     if (data.usage) {
@@ -325,19 +457,27 @@ export default function TranslatorApp() {
     setIsLoading(true);
     setError(null);
     setTranslatedText("");
+    setDraftText(null);
+    setCritiqueText(null);
+    setAttempts([]);
+    setActiveAttemptIndex(null);
+    setPendingAttempt(null);
+    setPendingStage(null);
+    setRetryError(null);
     setReviewSummary([]);
     setCorrectedVersion(null);
     setReviewHasIssues(false);
     setActivePanel("output");
 
     try {
-      await requestTranslation();
+      const finalText = await requestTranslation();
+      await runVerificationRetryLoop(finalText);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {
       setIsLoading(false);
     }
-  }, [inputText, requestTranslation]);
+  }, [inputText, requestTranslation, runVerificationRetryLoop]);
 
   const handleTranslateAndReview = useCallback(async () => {
     if (!inputText.trim()) {
@@ -354,6 +494,13 @@ export default function TranslatorApp() {
     setIsReviewPending(false);
     setError(null);
     setTranslatedText("");
+    setDraftText(null);
+    setCritiqueText(null);
+    setAttempts([]);
+    setActiveAttemptIndex(null);
+    setPendingAttempt(null);
+    setPendingStage(null);
+    setRetryError(null);
     setReviewSummary([]);
     setCorrectedVersion(null);
     setReviewHasIssues(false);
@@ -361,6 +508,7 @@ export default function TranslatorApp() {
 
     try {
       const draft = await requestTranslation();
+      await runVerificationRetryLoop(draft);
 
       // Stage 1 complete: show translation result before review starts.
       setIsLoading(false);
@@ -377,7 +525,7 @@ export default function TranslatorApp() {
       setIsReviewPending(false);
       setIsReviewLoading(false);
     }
-  }, [inputText, requestReview, requestTranslation]);
+  }, [inputText, requestReview, requestTranslation, runVerificationRetryLoop]);
 
   // Keyboard shortcut
   useEffect(() => {
@@ -482,7 +630,11 @@ export default function TranslatorApp() {
                 }}
               >
                 {TARGET_LANGUAGES.map((l) => (
-                  <option key={l.code} value={l.code}>
+                  <option
+                    key={l.code}
+                    value={l.code}
+                    style={hasDedicatedPrompt(l.code) ? undefined : { color: "#a78bfa" }}
+                  >
                     {l.label}
                   </option>
                 ))}
@@ -505,6 +657,65 @@ export default function TranslatorApp() {
           >
             Input
           </button>
+          {draftText != null && (
+            <button
+              type="button"
+              onClick={() => setActivePanel("draft")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${activePanel === "draft"
+                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
+                }`}
+            >
+              Draft
+            </button>
+          )}
+          {critiqueText != null && (
+            <button
+              type="button"
+              onClick={() => setActivePanel("critique")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all ${activePanel === "critique"
+                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
+                }`}
+            >
+              Critique
+            </button>
+          )}
+          {attempts.map((a, idx) => (
+            <button
+              key={a.attemptNumber}
+              type="button"
+              onClick={() => {
+                setActivePanel("attempt");
+                setActiveAttemptIndex(idx);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all flex items-center gap-1.5 ${activePanel === "attempt" && activeAttemptIndex === idx
+                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
+                }`}
+            >
+              Attempt {a.attemptNumber}
+              <span className={a.allPassed ? "text-emerald-400" : "text-amber-400"}>
+                {a.allPassed ? "✓" : "✕"}
+              </span>
+            </button>
+          ))}
+          {pendingAttempt != null && (
+            <button
+              type="button"
+              onClick={() => {
+                setActivePanel("attempt");
+                setActiveAttemptIndex(null);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-display uppercase tracking-wider transition-all flex items-center gap-1.5 ${activePanel === "attempt" && activeAttemptIndex === null
+                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                : "bg-[#12141c] text-gray-400 border border-[#2a2d3a] hover:text-gray-200"
+                }`}
+            >
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              Attempt {pendingAttempt}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setActivePanel("output")}
@@ -520,9 +731,10 @@ export default function TranslatorApp() {
               Set API key from top nav to start translating
             </span>
           )}
-          {totalCost > 0 && (
-            <span className="ml-auto text-[11px] text-cyan-400/80 font-display tabular-nums">
-              Session: ${totalCost.toFixed(6)}
+          {(translationCost != null || totalCost > 0) && (
+            <span className="ml-auto text-[11px] text-cyan-400/80 font-display tabular-nums whitespace-nowrap">
+              {translationCost != null && <>Current: ${translationCost.toFixed(2)} · </>}
+              Session: ${totalCost.toFixed(2)}
             </span>
           )}
         </div>
@@ -562,6 +774,79 @@ export default function TranslatorApp() {
               spellCheck={false}
             />
           </>
+        ) : activePanel === "draft" ? (
+          <div className="output-block flex-1 min-h-[360px] overflow-auto">
+            <pre className="p-4">
+              <code className="text-gray-200">{draftText}</code>
+            </pre>
+          </div>
+        ) : activePanel === "critique" ? (
+          <div className="output-block flex-1 min-h-[360px] overflow-auto">
+            <pre className="p-4">
+              <code className="text-gray-200">{critiqueText}</code>
+            </pre>
+          </div>
+        ) : activePanel === "attempt" ? (
+          <div className="output-block flex-1 min-h-[360px] overflow-auto p-4">
+            {activeAttemptIndex != null && attempts[activeAttemptIndex] ? (
+              (() => {
+                const attempt = attempts[activeAttemptIndex];
+                return (
+                  <div className="space-y-3">
+                    <div
+                      className={`px-3 py-2 rounded-lg border text-xs font-display font-semibold ${attempt.allPassed
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                        : "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                        }`}
+                    >
+                      Attempt {attempt.attemptNumber} of {MAX_VERIFICATION_ATTEMPTS} —{" "}
+                      {attempt.allPassed
+                        ? "all checks passed on independent review."
+                        : "some checks did not pass on independent review."}
+                    </div>
+                    <ul className="space-y-2">
+                      {attempt.results.map((r, idx) => (
+                        <li
+                          key={r.item ?? idx}
+                          className="flex items-start gap-2 text-xs text-gray-300 font-display"
+                        >
+                          <span
+                            className={`mt-0.5 shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${r.pass ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300"
+                              }`}
+                          >
+                            {r.pass ? "✓" : "✕"}
+                          </span>
+                          <span>
+                            <span className="text-gray-400">
+                              {attempt.checklist[idx] ?? `Check ${r.item}`}
+                            </span>
+                            {r.note && <span className="block text-gray-500 mt-0.5">{r.note}</span>}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()
+            ) : pendingAttempt != null ? (
+              <div className="flex flex-col items-center justify-center min-h-[320px] gap-3">
+                <div className="ai-orb" aria-hidden="true">
+                  <span className="ai-orb-ring" />
+                  <span className="ai-orb-ring" />
+                  <span className="ai-orb-core" />
+                </div>
+                <p className="text-xs text-cyan-300 font-display">
+                  {pendingStage === "fix"
+                    ? `Fixing failing checks for attempt ${pendingAttempt}...`
+                    : `Running verification for attempt ${pendingAttempt}...`}
+                </p>
+              </div>
+            ) : retryError ? (
+              <div className="flex flex-col items-center justify-center min-h-[320px] gap-2">
+                <p className="text-sm text-red-400 text-center max-w-sm leading-relaxed">{retryError}</p>
+              </div>
+            ) : null}
+          </div>
         ) : (
           <>
             <div className="flex items-center justify-between mb-3">
@@ -585,7 +870,7 @@ export default function TranslatorApp() {
                       <> | {tokenUsage.outputTokens.toLocaleString()} tokens</>
                     )}
                     {translationCost != null && (
-                      <> | ${translationCost.toFixed(6)}</>
+                      <> | ${translationCost.toFixed(2)}</>
                     )}
                   </span>
                   <button
@@ -613,12 +898,19 @@ export default function TranslatorApp() {
               {isLoading ? (
                 <div className="translation-wow h-full min-h-[360px] flex items-center justify-center p-6">
                   <div className="translation-wow-card">
+                    <div className="ai-orb" aria-hidden="true">
+                      <span className="ai-orb-ring" />
+                      <span className="ai-orb-ring" />
+                      <span className="ai-orb-core" />
+                    </div>
                     <p className="translation-wow-title">Translator Agent In Action</p>
-                    <div className="translation-canvas" aria-hidden="true" />
                     <div className="translation-message-rail">
                       <span className="translation-message-text" key={loadingMessageIndex}>
                         {LOADING_MESSAGES[loadingMessageIndex]}
                       </span>
+                    </div>
+                    <div className="ai-progress-track" aria-hidden="true">
+                      <div className="ai-progress-fill" />
                     </div>
                   </div>
                 </div>

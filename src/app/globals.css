@@ -322,18 +322,120 @@ select option {
   line-height: 1.45;
 }
 
-.translation-canvas {
-  width: 100%;
-  min-height: 220px;
-  border-radius: 12px;
-  border: 1px solid rgba(34, 211, 238, 0.16);
-  background:
-    linear-gradient(100deg, rgba(34, 211, 238, 0.06) 12%, rgba(34, 211, 238, 0.18) 40%, rgba(59, 130, 246, 0.22) 52%, rgba(34, 211, 238, 0.06) 88%),
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 230% 100%, 28px 28px, 28px 28px;
-  background-position: 0 0, 0 0, 0 0;
-  animation: shimmer 1.4s linear infinite;
+/* AI orb — spinning conic gradient ring + pulsing core + expanding rings */
+.ai-orb {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  margin: 0.25rem auto 0.5rem;
+}
+
+.ai-orb-ring {
+  position: absolute;
+  inset: -16px;
+  border-radius: 50%;
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  animation: aiOrbRingExpand 2.6s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+  opacity: 0;
+}
+
+.ai-orb-ring:nth-child(2) {
+  animation-delay: 1.3s;
+}
+
+.ai-orb::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #22d3ee, #3b82f6, #a855f7, #f472b6, #22d3ee);
+  animation: aiOrbSpin 2.4s linear infinite;
+}
+
+.ai-orb::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: var(--surface-card);
+}
+
+.ai-orb-core {
+  position: absolute;
+  inset: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(125, 235, 255, 0.95), rgba(59, 130, 246, 0.55) 55%, transparent 100%);
+  filter: blur(0.3px);
+  animation: aiOrbPulse 1.7s ease-in-out infinite;
+}
+
+@keyframes aiOrbSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes aiOrbPulse {
+
+  0%,
+  100% {
+    transform: scale(0.82);
+    opacity: 0.75;
+  }
+
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+}
+
+@keyframes aiOrbRingExpand {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.5;
+  }
+
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+.ai-progress-track {
+  width: min(220px, 80%);
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin: 0.25rem auto 0;
+}
+
+.ai-progress-fill {
+  height: 100%;
+  width: 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, #22d3ee, #a855f7, transparent);
+  animation: aiProgressSweep 1.6s ease-in-out infinite;
+}
+
+@keyframes aiProgressSweep {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .ai-orb-ring,
+  .ai-orb::before,
+  .ai-orb-core,
+  .ai-progress-fill {
+    animation: none;
+  }
 }
 
 .translation-message-rail {

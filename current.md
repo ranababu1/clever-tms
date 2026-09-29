@@ -52,6 +52,16 @@ pages use `claude_translator_api_key` / `claude-api-key-updated`.
 - `POST /api/models` — Returns the live Gemini model catalog (see "Model system"
   below). Takes `{ apiKey }`, returns `{ models, fetchedAt, fallback }`.
 - `POST /api/claude-models` — Same shape, for the Claude model catalog.
+- `POST /api/verify-translation` / `POST /api/verify-translation-claude` — independent
+  accuracy-verification pass (Gemini/Claude respectively). A fresh model call with no memory
+  of having written the translation; grades a given translation against the exact numbered
+  checklist from that language's `<critique>` block. Returns
+  `{ checklist, results[], allPassed, usage }` as structured JSON. See "Two-phase translation &
+  verification retry loop" below.
+- `POST /api/fix-translation` / `POST /api/fix-translation-claude` — given the original text,
+  the current translation, and the specific failing checklist items (with the verifier's
+  notes), returns a targeted revision fixing only those items. Called by the verification
+  retry loop, not exposed as a standalone UI action.
 
 ### God Mode parameters (as of this writing)
 
@@ -194,6 +204,51 @@ If you add a dedicated prompt file for another language, wire it into **both**
 `PROMPT_BUILDERS` and `PROMPT_TEMPLATES` in `translation-system-prompt.ts` — missing one means
 simple mode and God Mode disagree about whether that language has a real prompt.
 
+The "To" dropdown in all four apps colors languages without a dedicated prompt file
+(`hasDedicatedPrompt()` / `LANGUAGES_WITH_PROMPT` in `translation-models.ts`) in violet
+(`#a78bfa`) via an inline `<option>` style — a visual hint that they silently fall back to the
+German template. Color only, no label text.
+
+## Two-phase translation & verification retry loop
+
+Each dedicated-language prompt (`de`/`tr`/`vi`) asks the model for three tagged sections in
+one generation: `<draft>` → `<critique>` (a numbered self-graded PASS/FAIL checklist, 17 items
+as of this writing — see the individual prompt files) → `<final>`. Both `/api/translate` and
+`/api/translate-claude` parse all three out of the raw response and return
+`draftText`/`critiqueText` alongside `translatedText`; `TranslatorApp`/`TranslatorClaudeApp`
+show them as **Draft**/**Critique** tabs that persist until the next translation is triggered,
+rather than being discarded like a normal "thinking" trace. This costs nothing extra — the
+model was already generating all three sections before this was surfaced in the UI.
+
+`getVerificationChecklist(targetLang)` (`translation-system-prompt.ts`) extracts the numbered
+items straight out of that language's `<critique>` block via regex, so the checklist used for
+independent verification can never drift out of sync with the one the model self-grades
+against. `getPromptTemplateForLang`/`buildTranslationSystemPrompt`'s German-fallback rule
+applies here too (unsupported targets grade against German's checklist).
+
+**Optional independent verification (opt-in, real extra cost):** a checkbox in each "Set API
+Key" modal ("Run an independent accuracy verification pass after each translation"), persisted
+to `sessionStorage` (`gemini_translator_verify_enabled` / `claude_translator_verify_enabled`,
+off by default). When enabled, the simple Translator apps run a retry loop
+(`runVerificationRetryLoop`) after the main translation:
+
+1. `/api/verify-translation(-claude)` — a fresh model call, no memory of writing the
+   translation, grades it against the checklist.
+2. If any item fails, `/api/fix-translation(-claude)` is called with just the failing items +
+   the verifier's notes, asking for a targeted revision (not a full retranslate).
+3. Repeat from step 1 on the fixed text, up to `MAX_VERIFICATION_ATTEMPTS` (5, in
+   `src/lib/verification.ts`) or until every item passes.
+
+Each round is a separate network call, so each **Attempt N** tab appears the moment that round
+actually finishes (a pulsing placeholder tab shows while one is in flight) rather than all at
+once. The **Output** tab always reflects the latest (best) version — `translatedText` is
+overwritten by each successful fix. This is not token streaming: the main translate call still
+returns draft/critique/final together in one response; only the retry rounds are genuinely
+incremental. `accumulateCost` folds every verify/fix call's usage into both the
+per-translation ("Current") and session ("Session") cost totals shown in the tab bar. Not
+implemented for God Mode — God Mode's system prompt is raw/user-editable with no
+draft/critique/final structure to verify against.
+
 ## Branding
 
 App name is "Smart TMS". `package.json` name: `smart-tms`. Logo badge letter is "S" (God Mode
@@ -238,6 +293,13 @@ state.
 - API keys and cost/session totals are per-tab, in-memory + `sessionStorage` only; refreshing
   the tab keeps the key (sessionStorage persists across reload, cleared on tab close), but
   `totalCost` (session spend tracker) resets on reload since it's plain React state.
+- Live cost figures (Current/Session in the tab bar, per-translation cost in the Output panel)
+  are shown to 2 decimal places (`toFixed(2)`) across all four apps — cheap single translations
+  can legitimately round to `$0.00`; this is a deliberate readability choice, not a bug.
+- The translating/verifying loading visual is `.ai-orb` (globals.css) — a spinning conic
+  gradient ring + pulsing core + expanding rings + progress sweep — used identically for the
+  main translate wait and for each verification/fix round, across all four apps. Replaced the
+  old `.translation-canvas` shimmer-bar animation (removed).
 
 ## Build/run
 

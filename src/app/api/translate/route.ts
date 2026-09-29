@@ -75,8 +75,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extract only the <final> block from the two-phase output format.
-    // Falls back to the full response if the model didn't follow the structured format.
+    // Extract the <draft>, <critique>, and <final> blocks from the two-phase output format.
+    // Falls back to the full response as the final text if the model didn't follow the structure.
+    const draftMatch = rawText.match(/<draft>([\s\S]*?)<\/draft>/i);
+    const critiqueMatch = rawText.match(/<critique>([\s\S]*?)<\/critique>/i);
     const finalMatch = rawText.match(/<final>([\s\S]*?)<\/final>/i);
     const translatedText = finalMatch?.[1]?.trim() ?? rawText;
 
@@ -86,7 +88,15 @@ export async function POST(request: NextRequest) {
       totalTokens: response.usageMetadata?.totalTokenCount ?? 0,
     };
 
-    return NextResponse.json({ translatedText, model, sourceLang, targetLang, usage });
+    return NextResponse.json({
+      translatedText,
+      draftText: draftMatch?.[1]?.trim() ?? null,
+      critiqueText: critiqueMatch?.[1]?.trim() ?? null,
+      model,
+      sourceLang,
+      targetLang,
+      usage,
+    });
   } catch (error) {
     console.error("Translation API error:", error);
     if (error instanceof SyntaxError) {

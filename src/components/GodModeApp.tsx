@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { getPromptTemplateForLang } from "@/lib/translation-system-prompt";
-import { DEFAULT_MAX_OUTPUT_TOKENS, LANGUAGE_NAMES } from "@/lib/translation-models";
+import { DEFAULT_MAX_OUTPUT_TOKENS, LANGUAGE_NAMES, hasDedicatedPrompt } from "@/lib/translation-models";
 import { useGeminiModels } from "@/lib/useGeminiModels";
 import ModelInfoModal from "@/components/ModelInfoModal";
 
@@ -381,7 +381,11 @@ export default function GodModeApp() {
               <select value={targetLang} onChange={(e) => setTargetLang(e.target.value)}
                 className="w-full bg-[#12141c] border border-[#2a2d3a] rounded-lg px-3 py-2.5 text-sm text-gray-200 font-display cursor-pointer transition-all appearance-none"
                 style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}>
-                {TARGET_LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+                {TARGET_LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code} style={hasDedicatedPrompt(l.code) ? undefined : { color: "#a78bfa" }}>
+                    {l.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -547,7 +551,7 @@ export default function GodModeApp() {
               <span className="ml-auto text-[11px] text-amber-300/90 font-display">Set API key from top nav to start</span>
             )}
             {totalCost > 0 && (
-              <span className="ml-auto text-[11px] text-cyan-400/80 font-display tabular-nums">Session: ${totalCost.toFixed(6)}</span>
+              <span className="ml-auto text-[11px] text-cyan-400/80 font-display tabular-nums">Session: ${totalCost.toFixed(2)}</span>
             )}
         </div>
 
@@ -576,7 +580,7 @@ export default function GodModeApp() {
                   {translatedText && !isLoading && <button onClick={resetTranslationState} className="text-xs text-gray-400 hover:text-cyan-400 transition-colors font-display" type="button">New Translation</button>}
                   <span className="text-[10px] text-gray-500 font-display tabular-nums">
                     {translatedText.length.toLocaleString()} chars{tokenUsage && <> | {tokenUsage.outputTokens.toLocaleString()} tokens</>}
-                                      {translationCost != null && <> | ${translationCost.toFixed(6)}</>}
+                                      {translationCost != null && <> | ${translationCost.toFixed(2)}</>}
                   </span>
                   <button onClick={handleCopy} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-cyan-400 transition-colors font-display" type="button">
                     {copied ? <><IconCheck /><span>Copied!</span></> : <><IconCopy /><span>Copy</span></>}
@@ -589,10 +593,17 @@ export default function GodModeApp() {
               {isLoading ? (
                 <div className="translation-wow h-full min-h-[360px] flex items-center justify-center p-6">
                   <div className="translation-wow-card">
+                    <div className="ai-orb" aria-hidden="true">
+                      <span className="ai-orb-ring" />
+                      <span className="ai-orb-ring" />
+                      <span className="ai-orb-core" />
+                    </div>
                     <p className="translation-wow-title">Translator Agent In Action</p>
-                    <div className="translation-canvas" aria-hidden="true" />
                     <div className="translation-message-rail">
                       <span className="translation-message-text" key={loadingMessageIndex}>{LOADING_MESSAGES[loadingMessageIndex]}</span>
+                    </div>
+                    <div className="ai-progress-track" aria-hidden="true">
+                      <div className="ai-progress-fill" />
                     </div>
                   </div>
                 </div>

@@ -1,3 +1,12 @@
+// Targets with a hand-written, language-tuned prompt (see translation-system-prompt.ts). Any
+// other target silently falls back to the German template with the language name substituted —
+// used to flag those languages differently in the "To" dropdown.
+export const LANGUAGES_WITH_PROMPT = ["de", "tr", "vi"] as const;
+
+export function hasDedicatedPrompt(langCode: string): boolean {
+  return (LANGUAGES_WITH_PROMPT as readonly string[]).includes(langCode);
+}
+
 export const LANGUAGE_NAMES: Record<string, string> = {
   auto: "auto-detected language",
   ar: "Arabic",
