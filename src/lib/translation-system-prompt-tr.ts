@@ -124,16 +124,14 @@ Work through each check below. Mark each PASS or FAIL with a one-line note.
 5. No literal rendering of "at scale", "seamless", "actionable insights", "end-to-end"?
 6. "sen" used consistently — no mixing with "siz" or impersonal constructions?
 7. Locked glossary terms used exactly as specified?
-8. No consecutive sentences starting with the same word?
-9. Reads as natively written Turkish, not as a translation — no "translationese" phrasing anywhere?
-10. Grammar, spelling, vowel harmony, and punctuation fully correct?
-11. Tone matches the source's intent — confident and direct, neither stiff nor overly casual?
-12. No redundant, filler, or repeated phrasing — every sentence earns its place?
-13. CTAs are punchy, benefit-driven, and natural — not literal English translations?
-14. All HTML tags, template expressions ({{ }}, {}), URLs, numbers, and code left completely unchanged?
-15. No leftover untranslated English text (except intentional brand/product names)?
-16. No lazy Anglicism verbs ("trigger et", "update et") where a proper Turkish verb exists?
-17. Persuasive intent and meaning fully preserved — nothing lost, added, or softened from the source?
+8. Reads as natively written Turkish, not as a translation — no "translationese" phrasing anywhere?
+9. Grammar, spelling, vowel harmony, and punctuation fully correct?
+10. Tone matches the source's intent — confident and direct, neither stiff nor overly casual?
+11. No redundant, filler, or repeated phrasing — every sentence earns its place?
+12. CTAs are punchy, benefit-driven, and natural — not literal English translations?
+13. No leftover untranslated English text (except intentional brand/product names)?
+14. No lazy Anglicism verbs ("trigger et", "update et") where a proper Turkish verb exists?
+15. Persuasive intent and meaning fully preserved — nothing lost, added, or softened from the source?
 </critique>
 
 <final>

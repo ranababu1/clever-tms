@@ -212,7 +212,7 @@ German template. Color only, no label text.
 ## Two-phase translation & verification retry loop
 
 Each dedicated-language prompt (`de`/`tr`/`vi`) asks the model for three tagged sections in
-one generation: `<draft>` → `<critique>` (a numbered self-graded PASS/FAIL checklist, 17 items
+one generation: `<draft>` → `<critique>` (a numbered self-graded PASS/FAIL checklist, 15 items
 as of this writing — see the individual prompt files) → `<final>`. Both `/api/translate` and
 `/api/translate-claude` parse all three out of the raw response and return
 `draftText`/`critiqueText` alongside `translatedText`; `TranslatorApp`/`TranslatorClaudeApp`
