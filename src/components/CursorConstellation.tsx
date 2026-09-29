@@ -7,19 +7,28 @@ interface Particle {
   y: number;
   vx: number;
   vy: number;
+  radius: number;
+  hue: number;
+  baseAlpha: number;
+  twinkleSpeed: number;
+  twinklePhase: number;
 }
 
-const PARTICLE_COUNT = 48;
-const LINK_DISTANCE = 130;
-const CURSOR_DISTANCE = 200;
-const DRIFT_SPEED = 0.12;
+const LINK_DISTANCE = 150;
+const CURSOR_DISTANCE = 220;
+const DRIFT_SPEED = 0.18;
+const ATTRACT_STRENGTH = 0.028;
+const SWIRL_STRENGTH = 0.012;
+const MAX_SPEED = 0.9;
+const HUE_MIN = 190; // cyan
+const HUE_MAX = 320; // pink/violet
 
 /**
- * A faint, cursor-reactive constellation of dots and connecting lines — the same idea as
- * antigravity.google's hero animation, tuned down (fewer particles, lower opacity, contained
- * to its parent) so it reads as ambient texture rather than a focal element. Mount inside a
- * `position: relative` container; this renders an absolutely-positioned canvas behind the
- * container's content (pair with `pointer-events-none` and a lower z-index on the canvas,
+ * A dense, cursor-reactive constellation of glowing, multi-hued particles — modeled on
+ * antigravity.google's hero animation (additive-glow dots, gravitational pull toward the
+ * cursor, drifting connective lines) rather than the earlier flat cyan-only version. Mount
+ * inside a `position: relative` container; this renders an absolutely-positioned canvas behind
+ * the container's content (pair with `pointer-events-none` and a lower z-index on the canvas,
  * higher z-index on the real content).
  */
 export default function CursorConstellation() {
@@ -41,6 +50,7 @@ export default function CursorConstellation() {
     let particles: Particle[] = [];
     let mouse = { x: -9999, y: -9999, active: false };
     let animationFrame = 0;
+    let t = 0;
 
     const resize = () => {
       const rect = parent.getBoundingClientRect();
@@ -51,15 +61,22 @@ export default function CursorConstellation() {
       canvas.height = height * dpr;
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
-      ctx.scale(dpr, dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
+    const particleCount = () => Math.min(220, Math.max(70, Math.floor((width * height) / 9000)));
+
     const initParticles = () => {
-      particles = Array.from({ length: PARTICLE_COUNT }, () => ({
+      particles = Array.from({ length: particleCount() }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,
         vx: (Math.random() - 0.5) * DRIFT_SPEED,
         vy: (Math.random() - 0.5) * DRIFT_SPEED,
+        radius: 1 + Math.random() * 1.8,
+        hue: HUE_MIN + Math.random() * (HUE_MAX - HUE_MIN),
+        baseAlpha: 0.45 + Math.random() * 0.4,
+        twinkleSpeed: 0.5 + Math.random() * 1.2,
+        twinklePhase: Math.random() * Math.PI * 2,
       }));
     };
 
@@ -77,6 +94,7 @@ export default function CursorConstellation() {
     };
     const handleResize = () => {
       resize();
+      initParticles();
     };
 
     parent.addEventListener("mousemove", handleMouseMove);
@@ -84,14 +102,54 @@ export default function CursorConstellation() {
     window.addEventListener("resize", handleResize);
 
     const draw = () => {
+      t += 1;
       ctx.clearRect(0, 0, width, height);
+
+      // Soft glowing halo centered on the cursor — the "gravity well" the particles react to.
+      if (mouse.active) {
+        const glow = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, CURSOR_DISTANCE);
+        glow.addColorStop(0, "rgba(168, 139, 250, 0.10)");
+        glow.addColorStop(1, "rgba(168, 139, 250, 0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, width, height);
+      }
 
       for (const p of particles) {
         p.x += p.vx;
         p.y += p.vy;
+
+        if (mouse.active) {
+          const dx = mouse.x - p.x;
+          const dy = mouse.y - p.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          if (dist < CURSOR_DISTANCE) {
+            const pull = (1 - dist / CURSOR_DISTANCE) * ATTRACT_STRENGTH;
+            p.vx += (dx / dist) * pull;
+            p.vy += (dy / dist) * pull;
+            // Slight tangential nudge so particles swirl around the cursor instead of piling
+            // straight into it.
+            const swirl = (1 - dist / CURSOR_DISTANCE) * SWIRL_STRENGTH;
+            p.vx += (-dy / dist) * swirl;
+            p.vy += (dx / dist) * swirl;
+          }
+        }
+
+        // Gentle drag back toward drift speed so particles don't accelerate forever.
+        p.vx *= 0.985;
+        p.vy *= 0.985;
+        const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        if (speed > MAX_SPEED) {
+          p.vx = (p.vx / speed) * MAX_SPEED;
+          p.vy = (p.vy / speed) * MAX_SPEED;
+        }
+
         if (p.x < 0 || p.x > width) p.vx *= -1;
         if (p.y < 0 || p.y > height) p.vy *= -1;
+        p.x = Math.max(0, Math.min(width, p.x));
+        p.y = Math.max(0, Math.min(height, p.y));
       }
+
+      ctx.globalCompositeOperation = "lighter";
 
       for (let i = 0; i < particles.length; i++) {
         const a = particles[i];
@@ -102,8 +160,11 @@ export default function CursorConstellation() {
           const dy = a.y - b.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < LINK_DISTANCE) {
-            const opacity = (1 - dist / LINK_DISTANCE) * 0.12;
-            ctx.strokeStyle = `rgba(103, 232, 249, ${opacity})`;
+            const opacity = (1 - dist / LINK_DISTANCE) * 0.16;
+            const gradient = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+            gradient.addColorStop(0, `hsla(${a.hue}, 90%, 70%, ${opacity})`);
+            gradient.addColorStop(1, `hsla(${b.hue}, 90%, 70%, ${opacity})`);
+            ctx.strokeStyle = gradient;
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
@@ -117,8 +178,8 @@ export default function CursorConstellation() {
           const dy = a.y - mouse.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < CURSOR_DISTANCE) {
-            const opacity = (1 - dist / CURSOR_DISTANCE) * 0.35;
-            ctx.strokeStyle = `rgba(103, 232, 249, ${opacity})`;
+            const opacity = (1 - dist / CURSOR_DISTANCE) * 0.4;
+            ctx.strokeStyle = `hsla(${a.hue}, 90%, 75%, ${opacity})`;
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
@@ -126,12 +187,28 @@ export default function CursorConstellation() {
             ctx.stroke();
           }
         }
+      }
 
-        ctx.fillStyle = "rgba(148, 233, 250, 0.45)";
+      for (const p of particles) {
+        const twinkle = 0.65 + 0.35 * Math.sin(t * 0.02 * p.twinkleSpeed + p.twinklePhase);
+        const alpha = p.baseAlpha * twinkle;
+
+        // Soft outer glow, then a bright core — gives each dot the additive "star" look.
+        const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius * 4);
+        glow.addColorStop(0, `hsla(${p.hue}, 95%, 75%, ${alpha * 0.9})`);
+        glow.addColorStop(1, `hsla(${p.hue}, 95%, 75%, 0)`);
+        ctx.fillStyle = glow;
         ctx.beginPath();
-        ctx.arc(a.x, a.y, 1.4, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, p.radius * 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = `hsla(${p.hue}, 95%, 85%, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         ctx.fill();
       }
+
+      ctx.globalCompositeOperation = "source-over";
 
       animationFrame = requestAnimationFrame(draw);
     };

@@ -258,13 +258,19 @@ example URLs, referral params, or comments.
 
 ## Landing page effects
 
-`src/components/CursorConstellation.tsx` — a canvas-only particle field (drifting dots, faint
-links between nearby particles and toward the cursor), mounted once inside the landing page's
-hero `<section>` (`src/app/page.tsx`). Deliberately toned down from the antigravity.google
-effect it's inspired by (48 particles, cyan-only, low opacity) so it stays background texture.
-Reads the parent's bounding rect for sizing (mount it inside a `position: relative` container),
-no-ops under `prefers-reduced-motion: reduce`. Not used anywhere else in the app — the
-`/translate*`/`/godmode*` pages are functional surfaces where this kind of motion would be a
+`src/components/CursorConstellation.tsx` — a canvas-only particle field modeled on
+antigravity.google's hero animation, mounted once inside the landing page's hero `<section>`
+(`src/app/page.tsx`). Particle count scales with container area (70–220, vs. a flat count
+originally); each particle has a random hue across a cyan→violet→pink spectrum plus a
+per-particle twinkle (sine-wave opacity pulse), and renders as a soft radial-gradient glow +
+bright core with `globalCompositeOperation: "lighter"` so overlapping particles/lines actually
+brighten each other. Cursor interaction is real physics, not just drawn lines: nearby particles
+are pulled toward the cursor with a slight tangential swirl (so they orbit rather than pile
+straight onto it), with drag and a speed cap so motion settles rather than runs away; a soft
+violet halo is also drawn centered on the cursor. Reads the parent's bounding rect for sizing
+(mount it inside a `position: relative` container), no-ops under
+`prefers-reduced-motion: reduce`. Not used anywhere else in the app — the `/translate*`/
+`/godmode*` pages are functional surfaces where this kind of motion would be a
 distraction, not a translate-app-wide chrome element.
 
 The "God Mode" badge text (both `godmode/page.tsx` and `godmode/claude/page.tsx` headers) has
