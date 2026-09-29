@@ -4,6 +4,40 @@ Incremental history of this app. Newest first, one entry per commit, headed by t
 short hash on `main`. Entries older than the first AI-assisted one are reconstructed from
 `git log` after the fact.
 
+## feec203 — Verification retry loop and prompt/UI polish
+
+- **Draft/Critique tabs (Gemini + Claude simple mode):** `/api/translate` and
+  `/api/translate-claude` now parse the `<draft>`/`<critique>` sections out of the two-phase
+  response (previously only `<final>` was kept) and return them alongside `translatedText`.
+  `TranslatorApp`/`TranslatorClaudeApp` show them as persistent tabs (stay until the next
+  translation) — no extra API cost, the model already generated all three sections.
+- **Optional independent verification + auto-fix retry loop, max 5 attempts:** new checkbox in
+  each "Set API Key" modal ("Run an independent accuracy verification pass"), off by default,
+  persisted to `sessionStorage`. When on: `/api/verify-translation(-claude)` grades the
+  translation against that language's `<critique>` checklist with a fresh model call (no memory
+  of writing it); on any FAIL, `/api/fix-translation(-claude)` requests a targeted revision for
+  just the failing items, then re-verifies. Repeats up to `MAX_VERIFICATION_ATTEMPTS` (5) or
+  until all pass. Each round is a separate call, so each **Attempt N** tab appears as that round
+  actually finishes, with a live pending indicator while in flight. Real extra API cost per
+  round — folded into the "Current"/"Session" cost totals. New files: `lib/verification.ts`,
+  `app/api/verify-translation(-claude)/route.ts`, `app/api/fix-translation(-claude)/route.ts`.
+  Not wired into God Mode (no draft/critique/final structure to verify against there).
+- **Critique checklist expanded, 8 → 17 items** in all three dedicated prompts (`de`/`tr`/`vi`):
+  added checks for native-sounding phrasing, grammar/spelling/punctuation, tone match, no
+  filler/redundancy, natural CTAs, code/markup preservation, no leftover untranslated text, and
+  a language-specific spelling/style pitfall each — on top of the original 8. Since the
+  verification checklist is extracted programmatically from this block, both the Verify pass
+  and the retry loop pick up every item automatically.
+- **New AI-orb loading animation** (`globals.css` `.ai-orb`: spinning conic gradient ring +
+  pulsing core + expanding rings + progress sweep) replaces the old shimmer-bar
+  `.translation-canvas` visual, used for both the main translate wait and each
+  verification/fix round, across all four apps.
+- **Language dropdown coloring:** the "To" dropdown in all four apps now colors languages
+  without a dedicated prompt file (`hasDedicatedPrompt()` in `translation-models.ts`) in violet
+  — a quiet visual cue that they fall back to the German-tuned template, no label text.
+- **Cost display:** live cost figures (Current/Session, per-translation cost) now show 2
+  decimal places instead of 6 across all four apps.
+
 ## 6ac90cc — God Mode parameter overhaul
 
 - **Gemini God Mode:** removed Stop Sequences (label, input, add/remove UI, and the
